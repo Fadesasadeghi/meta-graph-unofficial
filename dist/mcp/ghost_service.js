@@ -10,9 +10,21 @@ import { TwinTransport } from '../twins/transport.js';
 export class GhostService {
     client;
     transport;
-    constructor(client) {
-        this.client = client || new TwinGraph({ offlineMode: process.env.OFFLINE_MODE === 'true' });
+    offlineMode;
+    constructor(client, options) {
+        this.offlineMode = options?.offlineMode ?? (process.env.OFFLINE_MODE === 'true');
+        this.client = client || new TwinGraph({ offlineMode: this.offlineMode });
         this.transport = new TwinTransport();
+    }
+    isOfflineMode() {
+        return (this.offlineMode ||
+            process.env.OFFLINE_MODE === 'true' ||
+            Boolean(this.client?.discovery?.isOfflineMode()));
+    }
+    assertOnline(operationName) {
+        if (this.isOfflineMode()) {
+            throw new Error(`${operationName} is unavailable in offline mode.`);
+        }
     }
     /**
      * Helper to decode HTML entities in web meta tags
@@ -42,6 +54,7 @@ export class GhostService {
      * Fetches authentic live metadata for any public username via web SSR headers (Zero Account / Zero Cookies)
      */
     async fetchLiveProfileMetadata(username) {
+        this.assertOnline('Profile inspection');
         const cleanUser = username.replace(/^@/, '').trim();
         const url = `https://www.instagram.com/${cleanUser}/`;
         try {
@@ -139,6 +152,7 @@ export class GhostService {
      * 1. Ghost Profile Inspection (100% Real, Zero Mock, Pure Guest Mode)
      */
     async getProfile(username) {
+        this.assertOnline('Profile inspection');
         const cleanUsername = username.replace(/^@/, '').trim();
         const liveWeb = await this.fetchLiveProfileMetadata(cleanUsername);
         return {
@@ -160,6 +174,7 @@ export class GhostService {
      * Extracts up to 12 initial posts directly from the guest SSR payload without any account.
      */
     async getTimelinePosts(params) {
+        this.assertOnline('Timeline retrieval');
         const cleanUsername = (params.username || '').replace(/^@/, '').trim();
         let profile = params.profile || null;
         if (!profile && cleanUsername) {
@@ -272,6 +287,7 @@ export class GhostService {
      * 3. Granular Media & Reel Metrics (100% Real)
      */
     async getMediaMetrics(mediaId) {
+        this.assertOnline('Media metrics retrieval');
         const cleanId = mediaId.trim().replace(/^https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+).*/, '$1');
         const url = `https://www.instagram.com/reel/${cleanId}/`;
         const headers = {
@@ -374,6 +390,7 @@ export class GhostService {
      * 4. Ghost Comment Harvesting (100% Real, Zero Account Session)
      */
     async getComments(mediaId, limit = 25) {
+        this.assertOnline('Comment harvesting');
         const cleanId = mediaId.trim().replace(/^https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+).*/, '$1');
         const url = `https://www.instagram.com/reel/${cleanId}/`;
         const headers = {
@@ -432,9 +449,7 @@ export class GhostService {
      * 5. Ghost Search (Users & Hashtags)
      */
     async search(query, type = 'all') {
-        if (process.env.OFFLINE_MODE === 'true' || this.client.discovery.isOfflineMode()) {
-            throw new Error('Search is unavailable in offline mode.');
-        }
+        this.assertOnline('Search');
         const context = type === 'users' ? 'user' : type === 'hashtags' ? 'hashtag' : 'blended';
         const res = await this.client.discovery.search(query, { context });
         if (res.status === 'auth_required') {
@@ -446,15 +461,14 @@ export class GhostService {
      * 6. Ghost Viral & Debate Explore Radar
      */
     async getViralExplore(limit = 10, minCommentRatio) {
-        if (process.env.OFFLINE_MODE === 'true' || this.client.discovery.isOfflineMode()) {
-            throw new Error('Viral explore is unavailable in offline mode.');
-        }
+        this.assertOnline('Viral explore');
         return this.client.discovery.getViralExplore({ limit, minCommentRatio });
     }
     /**
      * 7. Comprehensive Ghost Audit Report (100% Real, Zero Fake Numbers)
      */
     async auditAccount(username, sampleCount = 15) {
+        this.assertOnline('Account audit');
         const profile = await this.getProfile(username);
         const timeline = await this.getTimelinePosts({
             userId: profile.id,

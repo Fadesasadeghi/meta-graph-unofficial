@@ -6,7 +6,7 @@
  * Leaves zero footprint, zero story view notifications, and zero search history.
  */
 import { TwinGraph } from '../twin_graph.js';
-import { GraphSearchResponse, ViralExplorePost } from '../types/graph.js';
+import type { GraphSearchResponse, ViralExplorePost } from '../types/graph.js';
 export interface GhostProfileResult {
     id: string;
     username: string;
@@ -115,10 +115,16 @@ export interface GhostAuditReport {
     }>;
     audit_timestamp: string;
 }
+export interface GhostServiceOptions {
+    offlineMode?: boolean;
+}
 export declare class GhostService {
     private client;
     private transport;
-    constructor(client?: TwinGraph);
+    private offlineMode;
+    constructor(client?: TwinGraph, options?: GhostServiceOptions);
+    isOfflineMode(): boolean;
+    private assertOnline;
     /**
      * Helper to decode HTML entities in web meta tags
      */
