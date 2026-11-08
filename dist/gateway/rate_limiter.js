@@ -35,7 +35,7 @@ export class SmartRateLimiter {
         const cleanMethod = method.toUpperCase();
         const cleanPath = pathname.toLowerCase();
         // Mutations are sensitive actions
-        if (cleanMethod === 'POST' || cleanMethod === 'DELETE' || cleanMethod === 'PATCH') {
+        if (cleanMethod === 'POST' || cleanMethod === 'DELETE' || cleanMethod === 'PATCH' || cleanMethod === 'PUT') {
             return 'ACTION';
         }
         // Account-specific private edges
@@ -95,14 +95,13 @@ export class SmartRateLimiter {
         // ACCOUNT / ACTION MODE: Protected Human Pacing (Standard Baseline)
         // -------------------------------------------------------------
         this.refillAccountTokens(now);
-        this.accountCallCountHourly += 1;
         // Enforce safety cap per hour on live account
-        if (this.accountCallCountHourly > this.accountHourlyCap) {
+        if (this.accountCallCountHourly >= this.accountHourlyCap) {
             return {
                 allowed: false,
                 mode,
                 delayMs: 5000,
-                retryAfterSec: 60,
+                retryAfterSec: Math.ceil((3600000 - (now - this.hourWindowStart)) / 1000),
                 remainingBurst: 0,
                 reason: 'account_hourly_safety_cap',
                 errorMessage: `(#17) Account Safety Shield Active: Safe hourly threshold (${this.accountHourlyCap} calls/hr) reached for live session. Pausing for 60s to protect account from Meta checkpoint/ban.`,
@@ -119,6 +118,7 @@ export class SmartRateLimiter {
         this.lastAccountRequestTime = now + actualDelay;
         if (this.accountTokens >= 1) {
             this.accountTokens -= 1;
+            this.accountCallCountHourly += 1;
             return {
                 allowed: true,
                 mode,
