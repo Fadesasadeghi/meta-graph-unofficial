@@ -15,8 +15,10 @@ export class WebTwin {
     transport;
     constructor(profile, sessionPath = DEFAULT_SESSION_PATH, transport) {
         this.profile = profile || TwinProfileRegistry.getDefaultWeb();
-        this.transport = transport || new TwinTransport();
         this.session = this.loadSession(sessionPath);
+        this.transport = transport || new TwinTransport({
+            accountKey: this.session.ds_user_id || undefined
+        });
     }
     loadSession(sessionPath) {
         if (fs.existsSync(sessionPath)) {

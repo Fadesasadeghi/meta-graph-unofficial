@@ -27,7 +27,9 @@ export class DiscoveryTwin {
     constructor(deviceTwin, options = {}) {
         this.deviceTwin = deviceTwin || new DeviceTwin();
         this.graphqlTwin = new GraphQLTwin(this.deviceTwin);
-        this.transport = new TwinTransport();
+        this.transport = new TwinTransport({
+            accountKey: this.deviceTwin.getUserId() || undefined
+        });
         this.offlineMode = options.offlineMode !== undefined
             ? options.offlineMode
             : !this.deviceTwin.hasActiveSession();

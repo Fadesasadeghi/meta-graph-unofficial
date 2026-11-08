@@ -36,8 +36,10 @@ export class WebTwin {
 
   constructor(profile?: WebBrowserProfile, sessionPath: string = DEFAULT_SESSION_PATH, transport?: TwinTransport) {
     this.profile = profile || TwinProfileRegistry.getDefaultWeb();
-    this.transport = transport || new TwinTransport();
     this.session = this.loadSession(sessionPath);
+    this.transport = transport || new TwinTransport({
+      accountKey: this.session.ds_user_id || undefined
+    });
   }
 
   private loadSession(sessionPath: string): WebSessionData {

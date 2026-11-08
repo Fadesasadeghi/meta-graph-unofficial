@@ -17,7 +17,9 @@ export class DirectTwin {
     offlineMode;
     constructor(deviceTwin, options = {}) {
         this.deviceTwin = deviceTwin || new DeviceTwin();
-        this.transport = new TwinTransport();
+        this.transport = new TwinTransport({
+            accountKey: this.deviceTwin.getUserId() || undefined
+        });
         // Offline by default if no active session provided or explicitly set to offline
         this.offlineMode = options.offlineMode !== undefined
             ? options.offlineMode

@@ -34,7 +34,9 @@ export class MediaTwin {
   constructor(deviceTwin?: DeviceTwin, graphqlTwin?: GraphQLTwin) {
     this.deviceTwin = deviceTwin || new DeviceTwin();
     this.graphqlTwin = graphqlTwin || new GraphQLTwin(this.deviceTwin);
-    this.transport = new TwinTransport();
+    this.transport = new TwinTransport({
+      accountKey: this.deviceTwin.getUserId() || undefined
+    });
 
     // Initialized from REA hardware extraction of physical Redmi Note 13 4G (SM6225)
     this.codecProfile = {

@@ -2,6 +2,7 @@
  * Transport Layer for TwinGraph
  * Supports Tigon/Liger emulation and transparent SOCKS5/HTTPS proxying
  */
+import { OutboundLimiter } from './outbound_limiter.js';
 export interface TransportResponse {
     status: number;
     statusText: string;
@@ -14,11 +15,16 @@ export interface TransportRequestOptions {
     body?: string;
     timeoutMs?: number;
     proxyUrl?: string;
+    accountKey?: string;
 }
 export declare class TwinTransport {
+    private static readonly outboundLimiter;
+    static getOutboundLimiter(): OutboundLimiter;
     private defaultProxy?;
+    private defaultAccountKey?;
     constructor(options?: {
         proxyUrl?: string;
+        accountKey?: string;
     });
     request(urlStr: string, options?: TransportRequestOptions): Promise<TransportResponse>;
     /**

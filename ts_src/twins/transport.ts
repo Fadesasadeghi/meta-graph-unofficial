@@ -7,6 +7,7 @@ import * as https from 'node:https';
 import * as http from 'node:http';
 import * as zlib from 'node:zlib';
 import { SocksProxyAgent } from 'socks-proxy-agent';
+import { OutboundLimiter } from './outbound_limiter.js';
 
 export interface TransportResponse {
   status: number;
@@ -21,13 +22,22 @@ export interface TransportRequestOptions {
   body?: string;
   timeoutMs?: number;
   proxyUrl?: string;
+  accountKey?: string;
 }
 
 export class TwinTransport {
-  private defaultProxy?: string;
+  private static readonly outboundLimiter = new OutboundLimiter();
 
-  constructor(options?: { proxyUrl?: string }) {
+  public static getOutboundLimiter(): OutboundLimiter {
+    return TwinTransport.outboundLimiter;
+  }
+
+  private defaultProxy?: string;
+  private defaultAccountKey?: string;
+
+  constructor(options?: { proxyUrl?: string; accountKey?: string }) {
     this.defaultProxy = options?.proxyUrl;
+    this.defaultAccountKey = options?.accountKey?.trim() || undefined;
   }
 
   public async request(
@@ -37,6 +47,21 @@ export class TwinTransport {
     const url = new URL(urlStr);
     const method = (options.method || 'GET').toUpperCase();
     const timeout = options.timeoutMs || 25000;
+
+    const isInstagramApi = [
+      'i.instagram.com',
+      'www.instagram.com',
+      'graph.instagram.com'
+    ].includes(url.hostname.toLowerCase());
+
+    const limiterKey =
+      options.accountKey?.trim() ||
+      this.defaultAccountKey ||
+      'shared-instagram';
+
+    if (isInstagramApi) {
+      await TwinTransport.outboundLimiter.acquire(limiterKey);
+    }
 
     const proxyEnv = options.proxyUrl || this.defaultProxy || process.env.HTTPS_PROXY || process.env.ALL_PROXY || process.env.http_proxy;
     let agent: any = undefined;
@@ -84,6 +109,14 @@ export class TwinTransport {
             for (const [k, v] of Object.entries(res.headers)) {
               if (v) resHeaders[k] = Array.isArray(v) ? v.join(', ') : v;
             }
+            if (isInstagramApi) {
+              TwinTransport.outboundLimiter.recordResponse(
+                limiterKey,
+                res.statusCode || 0,
+                resHeaders
+              );
+            }
+
             resolve({
               status: res.statusCode || 0,
               statusText: res.statusMessage || '',
@@ -122,6 +155,19 @@ export class TwinTransport {
     const client = isHttps ? https : http;
     const method = (options.method || 'GET').toUpperCase();
     const timeout = options.timeoutMs || 30000;
+    const isInstagramApi = [
+      'i.instagram.com',
+      'www.instagram.com',
+      'graph.instagram.com'
+    ].includes(url.hostname.toLowerCase());
+    const limiterKey =
+      options.accountKey?.trim() ||
+      this.defaultAccountKey ||
+      'shared-instagram';
+
+    if (isInstagramApi) {
+      await TwinTransport.outboundLimiter.acquire(limiterKey);
+    }
 
     const headers = { ...(options.headers || {}) };
     if (options.body && !headers['Content-Length'] && !headers['content-length']) {
@@ -158,6 +204,14 @@ export class TwinTransport {
             for (const [k, v] of Object.entries(res.headers)) {
               if (v) resHeaders[k] = Array.isArray(v) ? v.join(', ') : v;
             }
+            if (isInstagramApi) {
+              TwinTransport.outboundLimiter.recordResponse(
+                limiterKey,
+                res.statusCode || 0,
+                resHeaders
+              );
+            }
+
             resolve({
               status: res.statusCode || 0,
               statusText: res.statusMessage || '',
@@ -205,11 +259,37 @@ export class TwinTransport {
       const client = isHttps ? https : http;
       const method = (options.method || 'GET').toUpperCase();
       const timeout = options.timeoutMs || 60000;
+      const isInstagramApi = [
+        'i.instagram.com',
+        'www.instagram.com',
+        'graph.instagram.com'
+      ].includes(url.hostname.toLowerCase());
+      const limiterKey =
+        options.accountKey?.trim() ||
+        this.defaultAccountKey ||
+        'shared-instagram';
+
+      if (isInstagramApi) {
+        await TwinTransport.outboundLimiter.acquire(limiterKey);
+      }
+
+      const originalOrigin = new URL(urlStr).origin;
+      const isCrossOriginRedirect = url.origin !== originalOrigin;
+
+      const requestHeaders = { ...(options.headers || {}) };
+
+      if (isCrossOriginRedirect) {
+        for (const name of Object.keys(requestHeaders)) {
+          if (/^(authorization|proxy-authorization|cookie|cookie2|x-ig-.*|x-fb-.*|x-csrftoken|x-asbd-id)$/i.test(name)) {
+            delete requestHeaders[name];
+          }
+        }
+      }
 
       const headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
         'Accept': '*/*',
-        ...(options.headers || {})
+        ...requestHeaders
       };
 
       const result = await new Promise<{
@@ -234,6 +314,14 @@ export class TwinTransport {
             const resHeaders: Record<string, string> = {};
             for (const [k, v] of Object.entries(res.headers)) {
               if (v) resHeaders[k] = Array.isArray(v) ? v.join(', ') : v;
+            }
+
+            if (isInstagramApi) {
+              TwinTransport.outboundLimiter.recordResponse(
+                limiterKey,
+                statusCode,
+                resHeaders
+              );
             }
 
             // Handle HTTP redirects (301, 302, 303, 307, 308)
