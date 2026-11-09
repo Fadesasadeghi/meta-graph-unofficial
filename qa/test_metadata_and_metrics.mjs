@@ -616,6 +616,137 @@ try {
 
   console.log('  PASS: Likes, comments and plays are independently extracted');
 
+  // Test 15: Never mix metrics from different media objects
+  console.log('[Test 15] Metrics must belong to the requested shortcode');
+
+  const multiMediaHtml = `<html><body><script type="application/json">
+  ${JSON.stringify({
+    related_media: [{
+      shortcode: 'OTHER15',
+      like_count: 9999,
+      comment_count: 999,
+      video_play_count: 50000,
+      is_video: true
+    }],
+    xdt_shortcode_media: {
+      shortcode: 'TARGET15',
+      like_count: 100,
+      video_play_count: 2000,
+      is_video: true
+    }
+  })}
+  </script></body></html>`;
+
+  const svc15 = createMockService({
+    'instagram.com/reel/TARGET15/': { data: multiMediaHtml }
+  });
+
+  const metrics15 = await svc15.getMediaMetrics('TARGET15');
+
+  assert.strictEqual(metrics15.metrics.likes, 100);
+  assert.strictEqual(metrics15.metrics.comments, null);
+  assert.strictEqual(metrics15.metrics.video_plays, 2000);
+  assert.strictEqual(metrics15.metrics.engagement_rate, null);
+
+  console.log('  PASS: Only requested media metrics were used');
+
+
+  // Test 16: Verified JSON metrics must override conflicting HTML metadata
+  console.log('[Test 16] Target JSON metrics override conflicting HTML metadata');
+
+  const conflictingHtml = `<html><head>
+    <meta name="description" content="9,999 likes, 999 comments">
+    </head><body><script type="application/json">
+    ${JSON.stringify({
+      xdt_shortcode_media: {
+        shortcode: 'TARGET16',
+        like_count: 100,
+        comment_count: 10,
+        video_play_count: 2000,
+        is_video: true
+      }
+    })}
+    </script></body></html>`;
+
+  const svc16 = createMockService({
+    'instagram.com/reel/TARGET16/': { data: conflictingHtml }
+  });
+
+  const metrics16 = await svc16.getMediaMetrics('TARGET16');
+
+  assert.strictEqual(metrics16.metrics.likes, 100);
+  assert.strictEqual(metrics16.metrics.comments, 10);
+  assert.strictEqual(metrics16.metrics.video_plays, 2000);
+  assert.strictEqual(metrics16.metrics.engagement_rate, 5.5);
+
+  console.log('  PASS: Verified JSON metrics take precedence');
+
+
+  // Test 17: Missing target JSON metric must not inherit conflicting HTML value
+  console.log('[Test 17] Missing target comments must remain unknown');
+
+  const partialTargetHtml = `<html><head>
+    <meta name="description" content="9,999 likes, 999 comments">
+    </head><body><script type="application/json">
+    ${JSON.stringify({
+      xdt_shortcode_media: {
+        shortcode: 'TARGET17',
+        like_count: 100,
+        video_play_count: 2000,
+        is_video: true
+      }
+    })}
+    </script></body></html>`;
+
+  const svc17 = createMockService({
+    'instagram.com/reel/TARGET17/': { data: partialTargetHtml }
+  });
+
+  const metrics17 = await svc17.getMediaMetrics('TARGET17');
+
+  assert.strictEqual(metrics17.metrics.likes, 100);
+  assert.strictEqual(metrics17.metrics.comments, null);
+  assert.strictEqual(metrics17.metrics.video_plays, 2000);
+  assert.strictEqual(metrics17.metrics.engagement_rate, null);
+
+  console.log('  PASS: Missing target metrics remain unknown');
+
+
+  // Test 18: Conflicting JSON metrics must not silently overwrite each other
+  console.log('[Test 18] Conflicting target JSON metrics remain unknown');
+
+  const conflictingJsonHtml = `<html><body>
+    <script type="application/json">${JSON.stringify({
+      xdt_shortcode_media: {
+        shortcode: 'TARGET18',
+        like_count: 100,
+        comment_count: 10,
+        video_play_count: 2000
+      }
+    })}</script>
+    <script type="application/json">${JSON.stringify({
+      xdt_shortcode_media: {
+        shortcode: 'TARGET18',
+        like_count: 900,
+        comment_count: 10,
+        video_play_count: 2000
+      }
+    })}</script>
+  </body></html>`;
+
+  const svc18 = createMockService({
+    'instagram.com/reel/TARGET18/': { data: conflictingJsonHtml }
+  });
+
+  const metrics18 = await svc18.getMediaMetrics('TARGET18');
+
+  assert.strictEqual(metrics18.metrics.likes, null);
+  assert.strictEqual(metrics18.metrics.comments, 10);
+  assert.strictEqual(metrics18.metrics.video_plays, 2000);
+  assert.strictEqual(metrics18.metrics.engagement_rate, null);
+
+  console.log('  PASS: Conflicting metrics are not treated as reliable');
+
   // Final verification: ZERO network calls leaked
   assert.strictEqual(networkCalls.length, 0, 'Zero network calls leaked across all tests');
   console.log('\n=== All Metadata & Metrics Fixture Tests Passed (0 network leaks) ===');

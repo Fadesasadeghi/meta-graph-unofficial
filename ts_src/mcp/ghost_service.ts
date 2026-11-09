@@ -512,6 +512,13 @@ export class GhostService {
     let likes: number | null = null;
     let comments: number | null = null;
     let videoPlays: number | undefined = undefined;
+    let jsonLikes: number | undefined;
+    let jsonComments: number | undefined;
+    let jsonPlays: number | undefined;
+    let likesConflict = false;
+    let commentsConflict = false;
+    let playsConflict = false;
+    let foundTargetJson = false;
     let caption = '';
     let timestamp: string | undefined = undefined;
     let mediaType = 'IMAGE';
@@ -551,32 +558,87 @@ export class GhostService {
             (c.includes('XIGPolarisMedia') || c.includes('POLARIS_') || c.includes('xdt_shortcode_media'))) {
           try {
             const json = JSON.parse(c);
-            const search = (obj: any) => {
-              if (!obj || typeof obj !== 'object') return;
-              if (obj.like_count !== undefined ||
-                  obj.comment_count !== undefined ||
-                  obj.video_play_count !== undefined) {
-                if (likes === null && typeof obj.like_count === 'number' &&
-                    Number.isFinite(obj.like_count) && obj.like_count >= 0)
-                  likes = obj.like_count;
-                if (comments === null && typeof obj.comment_count === 'number' &&
-                    Number.isFinite(obj.comment_count) && obj.comment_count >= 0)
-                  comments = obj.comment_count;
-                if (videoPlays === undefined && typeof obj.video_play_count === 'number' &&
-                    Number.isFinite(obj.video_play_count) && obj.video_play_count >= 0)
-                  videoPlays = obj.video_play_count;
-                if (obj.is_video) mediaType = 'VIDEO';
-                if (obj.taken_at) timestamp = new Date(obj.taken_at * 1000).toISOString();
-                if (obj.caption?.text) caption = obj.caption.text;
-                else if (typeof obj.caption === 'string') caption = obj.caption;
-                else if (obj.accessibility_caption && !caption) caption = obj.accessibility_caption;
-              }
-              for (const k of Object.keys(obj)) search(obj[k]);
+            const matchesRequestedMedia = (obj: any): boolean => {
+              if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+              const identifiers = [obj.shortcode, obj.code].filter(
+                (v): v is string => typeof v === 'string' && v.length > 0
+              );
+              return identifiers.length > 0 && identifiers.every(v => v === cleanId);
             };
-            search(json);
+
+            const findTarget = (obj: any): any | null => {
+              if (!obj || typeof obj !== 'object') return null;
+
+              if (!Array.isArray(obj) && obj.xdt_shortcode_media) {
+                const media = obj.xdt_shortcode_media;
+                if (media && typeof media === 'object' && !Array.isArray(media)) {
+                  const identifiers = [media.shortcode, media.code].filter(
+                    (v): v is string => typeof v === 'string' && v.length > 0
+                  );
+                  if (identifiers.length === 0 || matchesRequestedMedia(media)) {
+                    return media;
+                  }
+                }
+              }
+
+              if (!Array.isArray(obj) && matchesRequestedMedia(obj)) return obj;
+
+              for (const child of Object.values(obj)) {
+                const found = findTarget(child);
+                if (found) return found;
+              }
+              return null;
+            };
+
+            const media = findTarget(json);
+            if (media) {
+              const validCount = (value: unknown): value is number =>
+                typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
+              foundTargetJson = true;
+
+              if (validCount(media.like_count)) {
+                if (jsonLikes !== undefined && jsonLikes !== media.like_count)
+                  likesConflict = true;
+                else
+                  jsonLikes = media.like_count;
+              }
+
+              if (validCount(media.comment_count)) {
+                if (jsonComments !== undefined && jsonComments !== media.comment_count)
+                  commentsConflict = true;
+                else
+                  jsonComments = media.comment_count;
+              }
+
+              if (validCount(media.video_play_count)) {
+                if (jsonPlays !== undefined && jsonPlays !== media.video_play_count)
+                  playsConflict = true;
+                else
+                  jsonPlays = media.video_play_count;
+              }
+
+              if (media.is_video === true) mediaType = 'VIDEO';
+              if (typeof media.taken_at === 'number' && Number.isFinite(media.taken_at)) {
+                const date = new Date(media.taken_at * 1000);
+                if (!Number.isNaN(date.getTime()))
+                  timestamp = date.toISOString();
+              }
+
+              if (typeof media.caption?.text === 'string') caption = media.caption.text;
+              else if (typeof media.caption === 'string') caption = media.caption;
+              else if (typeof media.accessibility_caption === 'string' && !caption)
+                caption = media.accessibility_caption;
+            }
           } catch {}
         }
       }
+    }
+
+    if (foundTargetJson) {
+      likes = likesConflict ? null : (jsonLikes ?? null);
+      comments = commentsConflict ? null : (jsonComments ?? null);
+      videoPlays = playsConflict ? undefined : jsonPlays;
     }
 
     const commentToLikeRatio =
