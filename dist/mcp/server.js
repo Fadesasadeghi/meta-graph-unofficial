@@ -12,8 +12,10 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { GhostService } from './ghost_service.js';
+import { DraftStore } from '../content/draft_store.js';
 // Initialize the Ghost Service (wraps TwinGraph & Mobile/Web Twins)
 const ghost = new GhostService();
+const drafts = new DraftStore();
 const SERVER_NAME = 'meta-graph-ghost-mcp';
 const SERVER_VERSION = '1.0.0';
 const server = new Server({
@@ -26,6 +28,67 @@ const server = new Server({
 });
 // 1. Tool Definitions
 const GHOST_TOOLS = [
+    {
+        name: 'instagram_update_draft',
+        description: 'Update an existing local Instagram draft. Does not publish anything.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                id: {
+                    type: 'string',
+                    description: 'ID of the existing draft.'
+                },
+                caption: {
+                    type: 'string',
+                    description: 'New caption, maximum 2200 characters.'
+                },
+                mediaUrl: {
+                    type: 'string',
+                    description: 'New HTTP or HTTPS media URL.'
+                },
+                hashtags: {
+                    type: 'array',
+                    items: { type: 'string' }
+                }
+            },
+            required: ['id']
+        }
+    },
+    {
+        name: 'instagram_list_drafts',
+        description: 'List locally saved Instagram drafts. Does not publish anything.',
+        inputSchema: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'instagram_create_draft',
+        description: 'Save a local Instagram post, story, or reel draft. Does not publish anything.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                type: {
+                    type: 'string',
+                    enum: ['post', 'story', 'reel']
+                },
+                caption: {
+                    type: 'string',
+                    description: 'Caption text, maximum 2200 characters.'
+                },
+                mediaUrl: {
+                    type: 'string',
+                    description: 'Optional HTTP or HTTPS media URL.'
+                },
+                hashtags: {
+                    type: 'array',
+                    items: { type: 'string' }
+                }
+            },
+            required: ['type', 'caption']
+        }
+    },
     {
         name: 'ghost_get_profile',
         description: 'Inspect any Instagram account anonymously in Ghost Mode. Returns username, full name, bio, follower count, following count, total post count, verified status, and HD profile picture without leaving any footprint.',
@@ -166,6 +229,63 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args = {} } = request.params;
     try {
         switch (name) {
+            case 'instagram_update_draft': {
+                const id = String(args.id || '');
+                const changes = {};
+                if (args.caption !== undefined) {
+                    changes.caption = args.caption;
+                }
+                if (args.mediaUrl !== undefined) {
+                    changes.mediaUrl = args.mediaUrl;
+                }
+                if (args.hashtags !== undefined) {
+                    changes.hashtags = args.hashtags;
+                }
+                const updated = await drafts.update(id, changes);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                message: 'Draft updated locally. Nothing was published.',
+                                draft: updated
+                            }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_list_drafts': {
+                const savedDrafts = await drafts.list();
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                total: savedDrafts.length,
+                                drafts: savedDrafts,
+                                message: 'Local drafts only. Nothing was published.'
+                            }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_create_draft': {
+                const draft = await drafts.create({
+                    type: args.type,
+                    caption: args.caption,
+                    ...(args.mediaUrl !== undefined
+                        ? { mediaUrl: args.mediaUrl }
+                        : {}),
+                    ...(args.hashtags !== undefined
+                        ? { hashtags: args.hashtags }
+                        : {})
+                });
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                message: 'Draft saved locally. Nothing was published.',
+                                draft
+                            }, null, 2)
+                        }]
+                };
+            }
             case 'ghost_get_profile': {
                 const username = String(args.username || '');
                 if (!username) {

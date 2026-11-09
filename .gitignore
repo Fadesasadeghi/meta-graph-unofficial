@@ -21,3 +21,6 @@ data/
 *.db
 .chrome_windows_profile/
 HANDOFF.md
+
+# Local Instagram drafts (private user data)
+/data/instagram_drafts/
