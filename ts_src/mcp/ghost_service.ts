@@ -19,18 +19,18 @@ import type {
 } from '../types/graph.js';
 
 export interface GhostProfileResult {
-  id: string;
+  id: string | null;
   username: string;
-  full_name: string;
-  biography: string;
-  external_url?: string;
-  followers_count: number;
-  following_count: number;
-  media_count: number;
-  is_verified: boolean;
-  is_private: boolean;
-  is_business: boolean;
-  profile_pic_url: string;
+  full_name: string | null;
+  biography: string | null;
+  external_url?: string | null;
+  followers_count: number | null;
+  following_count: number | null;
+  media_count: number | null;
+  is_verified: boolean | null;
+  is_private: boolean | null;
+  is_business: boolean | null;
+  profile_pic_url: string | null;
 }
 
 export interface GhostPostItem {
@@ -48,7 +48,7 @@ export interface GhostPostItem {
   video_duration?: number;
   thumbnail_url?: string;
   video_url?: string;
-  calculated_engagement_rate?: number;
+  calculated_engagement_rate?: number | null;
 }
 
 export interface GhostTimelineResult {
@@ -68,16 +68,17 @@ export interface GhostMediaMetricsResult {
   caption: string;
   timestamp?: string;
   metrics: {
-    video_plays?: number;
+    video_plays?: number | null;
     video_views?: number;
-    likes: number;
-    comments: number;
+    likes: number | null;
+    comments: number | null;
     shares?: number;
     saves?: number;
     reach?: number;
     impressions?: number;
-    engagement_rate: number;
-    comment_to_like_ratio?: number;
+    engagement_rate: number | null;
+    engagement_rate_denominator?: 'views' | 'followers' | null;
+    comment_to_like_ratio?: number | null;
   };
   retention?: {
     avg_watch_time_seconds?: number;
@@ -89,35 +90,36 @@ export interface GhostMediaMetricsResult {
 export interface GhostAuditReport {
   target: {
     username: string;
-    full_name: string;
-    followers: number;
-    following: number;
-    total_posts: number;
-    is_verified: boolean;
-    biography: string;
+    full_name: string | null;
+    followers: number | null;
+    following: number | null;
+    total_posts: number | null;
+    is_verified: boolean | null;
+    biography: string | null;
   };
   analyzed_sample_size: number;
   aggregate_metrics: {
     total_sampled_plays: number;
-    average_plays_per_reel: number;
+    average_plays_per_reel: number | null;
     total_sampled_likes: number;
-    average_likes_per_post: number;
+    average_likes_per_post: number | null;
     total_sampled_comments: number;
-    average_comments_per_post: number;
-    overall_engagement_rate_pct: number;
+    average_comments_per_post: number | null;
+    overall_engagement_rate_pct: number | null;
   };
   content_mix: {
     reels_count: number;
     feed_posts_count: number;
-    reels_share_pct: number;
+    reels_share_pct: number | null;
   };
   top_performing_reels: Array<{
     id: string;
     shortcode: string;
-    plays: number;
+    plays: number | null;
     likes: number;
     comments: number;
-    engagement_rate: number;
+    engagement_rate: number | null;
+    engagement_rate_denominator?: 'views' | 'followers' | null;
     caption_snippet: string;
     permalink: string;
   }>;
@@ -125,7 +127,7 @@ export interface GhostAuditReport {
     id: string;
     shortcode: string;
     comments: number;
-    comment_to_like_ratio: number;
+    comment_to_like_ratio: number | null;
     caption_snippet: string;
   }>;
   audit_timestamp: string;
@@ -175,26 +177,37 @@ export class GhostService {
   /**
    * Helper to parse human-readable metric counts (e.g. "1,231", "12.5K", "3M")
    */
-  private parseCount(str: string): number {
-    if (!str) return 0;
-    const clean = str.replace(/,/g, '').trim();
-    if (clean.endsWith('K') || clean.endsWith('k')) return Math.round(parseFloat(clean) * 1000);
-    if (clean.endsWith('M') || clean.endsWith('m')) return Math.round(parseFloat(clean) * 1000000);
-    return parseInt(clean, 10) || 0;
+  private parseCount(str: string | null | undefined): number | null {
+    if (str === undefined || str === null) return null;
+    const clean = String(str).replace(/,/g, '').trim();
+    if (clean === '') return null;
+    if (clean.endsWith('K') || clean.endsWith('k')) {
+      const val = parseFloat(clean);
+      return isNaN(val) ? null : Math.round(val * 1000);
+    }
+    if (clean.endsWith('M') || clean.endsWith('m')) {
+      const val = parseFloat(clean);
+      return isNaN(val) ? null : Math.round(val * 1000000);
+    }
+    const parsed = parseInt(clean, 10);
+    return isNaN(parsed) ? null : parsed;
   }
 
   /**
    * Fetches authentic live metadata for any public username via web SSR headers (Zero Account / Zero Cookies)
    */
   private async fetchLiveProfileMetadata(username: string): Promise<{
-    id: string;
-    followers: number;
-    following: number;
-    posts: number;
-    biography: string;
-    fullName: string;
-    profilePicUrl: string;
-    isVerified: boolean;
+    id: string | null;
+    followers: number | null;
+    following: number | null;
+    posts: number | null;
+    biography: string | null;
+    fullName: string | null;
+    profilePicUrl: string | null;
+    isVerified: boolean | null;
+    isPrivate: boolean | null;
+    isBusiness: boolean | null;
+    externalUrl?: string | null;
   }> {
     this.assertOnline('Profile inspection');
     const cleanUser = username.replace(/^@/, '').trim();
@@ -218,14 +231,17 @@ export class GhostService {
       }
       if (res.status === 200) {
         const data = res.data;
-        let id = '0';
-        let followers = 0;
-        let following = 0;
-        let posts = 0;
-        let biography = '';
-        let fullName = cleanUser;
-        let profilePicUrl = '';
-        let isVerified = false;
+        let id: string | null = null;
+        let followers: number | null = null;
+        let following: number | null = null;
+        let posts: number | null = null;
+        let biography: string | null = null;
+        let fullName: string | null = null;
+        let profilePicUrl: string | null = null;
+        let isVerified: boolean | null = null;
+        let isPrivate: boolean | null = null;
+        let isBusiness: boolean | null = null;
+        let externalUrl: string | null = null;
 
         const metaDescMatch = data.match(/<meta\s+(?:name="description"|property="og:description")\s+content="([^"]*)"/i);
         if (metaDescMatch) {
@@ -242,7 +258,7 @@ export class GhostService {
         if (metaContentMatch) {
           const fullContent = this.decodeHtml(metaContentMatch[1]);
           const bioMatch = fullContent.match(/on Instagram:\s*"(?:‎)?([\s\S]*?)(?:‎)?"\s*$/i) || fullContent.match(/:\s*"([\s\S]*?)"\s*$/i);
-          if (bioMatch) {
+          if (bioMatch && bioMatch[1].trim()) {
             biography = bioMatch[1].trim();
           }
         }
@@ -251,7 +267,7 @@ export class GhostService {
         if (ogTitleMatch) {
           const title = this.decodeHtml(ogTitleMatch[1]);
           const nameMatch = title.match(/^(?:‎)?(.*?)(?:‎)?\s*\(/);
-          if (nameMatch) {
+          if (nameMatch && nameMatch[1].trim()) {
             fullName = nameMatch[1].trim();
           }
         }
@@ -260,16 +276,53 @@ export class GhostService {
         const jsonScripts = [...data.matchAll(/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/gi)];
         for (const s of jsonScripts) {
           const c = s[1];
-          if (c.includes('username') && (c.includes('profile_pic_url') || c.includes('full_name'))) {
+          if (c.includes('username') && (c.includes('profile_pic_url') || c.includes('full_name') || c.includes('is_verified') || c.includes('is_private') || c.includes('is_business'))) {
             try {
               const json = JSON.parse(c);
               const search = (obj: any) => {
                 if (!obj || typeof obj !== 'object') return;
-                if (obj.username && obj.username.toLowerCase() === cleanUser.toLowerCase()) {
-                  if (obj.id || obj.pk) id = String(obj.id || obj.pk);
-                  if (obj.full_name) fullName = obj.full_name;
-                  if (obj.profile_pic_url) profilePicUrl = obj.profile_pic_url;
-                  if (obj.is_verified !== undefined) isVerified = Boolean(obj.is_verified);
+                if (typeof obj.username === 'string' && obj.username.toLowerCase() === cleanUser.toLowerCase()) {
+                  if (obj.id || obj.pk || obj.pk_id) id = String(obj.id || obj.pk || obj.pk_id);
+                  if (typeof obj.full_name === 'string' && obj.full_name.trim()) fullName = obj.full_name.trim();
+                  if (typeof obj.profile_pic_url_hd === 'string' && obj.profile_pic_url_hd) {
+                    profilePicUrl = obj.profile_pic_url_hd;
+                  } else if (typeof obj.profile_pic_url === 'string' && obj.profile_pic_url) {
+                    profilePicUrl = obj.profile_pic_url;
+                  }
+                  if (typeof obj.biography === 'string' && obj.biography) biography = obj.biography;
+                  if (typeof obj.external_url === 'string' && obj.external_url) externalUrl = obj.external_url;
+
+                  if (typeof obj.follower_count === 'number') {
+                    followers = obj.follower_count;
+                  } else if (obj.edge_followed_by && typeof obj.edge_followed_by.count === 'number') {
+                    followers = obj.edge_followed_by.count;
+                  }
+
+                  if (typeof obj.following_count === 'number') {
+                    following = obj.following_count;
+                  } else if (obj.edge_follow && typeof obj.edge_follow.count === 'number') {
+                    following = obj.edge_follow.count;
+                  }
+
+                  if (typeof obj.media_count === 'number') {
+                    posts = obj.media_count;
+                  } else if (obj.edge_owner_to_timeline_media && typeof obj.edge_owner_to_timeline_media.count === 'number') {
+                    posts = obj.edge_owner_to_timeline_media.count;
+                  }
+
+                  if (typeof obj.is_verified === 'boolean') {
+                    isVerified = obj.is_verified;
+                  }
+                  if (typeof obj.is_private === 'boolean') {
+                    isPrivate = obj.is_private;
+                  }
+                  if (typeof obj.is_business === 'boolean') {
+                    isBusiness = obj.is_business;
+                  } else if (typeof obj.is_business_account === 'boolean') {
+                    isBusiness = obj.is_business_account;
+                  } else if (typeof obj.is_professional_account === 'boolean') {
+                    isBusiness = obj.is_professional_account;
+                  }
                 }
                 for (const k of Object.keys(obj)) search(obj[k]);
               };
@@ -278,7 +331,7 @@ export class GhostService {
           }
         }
 
-        return { id, followers, following, posts, biography, fullName, profilePicUrl, isVerified };
+        return { id, followers, following, posts, biography, fullName, profilePicUrl, isVerified, isPrivate, isBusiness, externalUrl };
       }
       throw new Error(`Instagram returned HTTP ${res.status} (${res.statusText || 'Unexpected response'})`);
     } catch (err: any) {
@@ -300,12 +353,13 @@ export class GhostService {
       username: cleanUsername,
       full_name: liveWeb.fullName,
       biography: liveWeb.biography,
+      external_url: liveWeb.externalUrl ?? undefined,
       followers_count: liveWeb.followers,
       following_count: liveWeb.following,
       media_count: liveWeb.posts,
       is_verified: liveWeb.isVerified,
-      is_private: false,
-      is_business: true,
+      is_private: liveWeb.isPrivate,
+      is_business: liveWeb.isBusiness,
       profile_pic_url: liveWeb.profilePicUrl
     };
   }
@@ -429,7 +483,7 @@ export class GhostService {
     return {
       username: profile?.username || cleanUsername || 'unknown',
       user_id: profile?.id || params.userId || '0',
-      total_media_count: profile?.media_count || posts.length,
+      total_media_count: typeof profile?.media_count === 'number' ? profile.media_count : posts.length,
       retrieved_count: posts.length,
       has_next_page: hasNextPage,
       next_cursor: nextCursor,
@@ -455,8 +509,8 @@ export class GhostService {
       'Upgrade-Insecure-Requests': '1'
     };
 
-    let likes = 0;
-    let comments = 0;
+    let likes: number | null = null;
+    let comments: number | null = null;
     let videoPlays: number | undefined = undefined;
     let caption = '';
     let timestamp: string | undefined = undefined;
@@ -493,15 +547,24 @@ export class GhostService {
       const jsonScripts = [...data.matchAll(/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/gi)];
       for (const s of jsonScripts) {
         const c = s[1];
-        if (c.includes('like_count') && (c.includes('XIGPolarisMedia') || c.includes('POLARIS_') || c.includes('xdt_shortcode_media'))) {
+        if ((c.includes('like_count') || c.includes('comment_count') || c.includes('video_play_count')) &&
+            (c.includes('XIGPolarisMedia') || c.includes('POLARIS_') || c.includes('xdt_shortcode_media'))) {
           try {
             const json = JSON.parse(c);
             const search = (obj: any) => {
               if (!obj || typeof obj !== 'object') return;
-              if (obj.like_count !== undefined && obj.comment_count !== undefined) {
-                if (!likes) likes = obj.like_count;
-                if (!comments) comments = obj.comment_count;
-                if (obj.video_play_count) videoPlays = obj.video_play_count;
+              if (obj.like_count !== undefined ||
+                  obj.comment_count !== undefined ||
+                  obj.video_play_count !== undefined) {
+                if (likes === null && typeof obj.like_count === 'number' &&
+                    Number.isFinite(obj.like_count) && obj.like_count >= 0)
+                  likes = obj.like_count;
+                if (comments === null && typeof obj.comment_count === 'number' &&
+                    Number.isFinite(obj.comment_count) && obj.comment_count >= 0)
+                  comments = obj.comment_count;
+                if (videoPlays === undefined && typeof obj.video_play_count === 'number' &&
+                    Number.isFinite(obj.video_play_count) && obj.video_play_count >= 0)
+                  videoPlays = obj.video_play_count;
                 if (obj.is_video) mediaType = 'VIDEO';
                 if (obj.taken_at) timestamp = new Date(obj.taken_at * 1000).toISOString();
                 if (obj.caption?.text) caption = obj.caption.text;
@@ -516,10 +579,20 @@ export class GhostService {
       }
     }
 
-    const commentToLikeRatio = likes > 0 ? Number((comments / likes).toFixed(4)) : undefined;
-    const engRate = videoPlays && videoPlays > 0
-      ? Number((((likes + comments) / videoPlays) * 100).toFixed(2))
-      : 0;
+    const commentToLikeRatio =
+      likes !== null && comments !== null && likes > 0
+        ? Number((comments / likes).toFixed(4))
+        : null;
+
+    const engRate =
+      likes !== null &&
+      comments !== null &&
+      typeof videoPlays === 'number' &&
+      videoPlays > 0
+        ? Number((((likes + comments) / videoPlays) * 100).toFixed(2))
+        : null;
+
+    const engDenominator = engRate !== null ? 'views' : null;
 
     return {
       media_id: cleanId,
@@ -532,6 +605,7 @@ export class GhostService {
         likes,
         comments,
         engagement_rate: engRate,
+        engagement_rate_denominator: engDenominator,
         comment_to_like_ratio: commentToLikeRatio
       }
     };
@@ -642,7 +716,7 @@ export class GhostService {
     this.assertOnline('Account audit');
     const profile = await this.getProfile(username);
     const timeline = await this.getTimelinePosts({
-      userId: profile.id,
+      userId: profile.id || undefined,
       username: profile.username,
       limit: sampleCount,
       profile
@@ -652,18 +726,28 @@ export class GhostService {
     const reels = posts.filter(p => p.media_type === 'VIDEO' || p.media_product_type === 'REELS');
     const feedPosts = posts.filter(p => p.media_type !== 'VIDEO');
 
-    const totalPlays = reels.reduce((acc, r) => acc + (r.video_play_count || 0), 0);
-    const avgPlays = reels.length > 0 ? Math.round(totalPlays / reels.length) : 0;
+    const reelsWithKnownPlays = reels.filter(
+      r => typeof r.video_play_count === 'number' &&
+           Number.isFinite(r.video_play_count) &&
+           r.video_play_count >= 0
+    );
+    const totalPlays = reelsWithKnownPlays.reduce(
+      (acc, r) => acc + (r.video_play_count as number), 0
+    );
+    const avgPlays = reelsWithKnownPlays.length > 0
+      ? Math.round(totalPlays / reelsWithKnownPlays.length)
+      : null;
 
     const totalLikes = posts.reduce((acc, p) => acc + p.like_count, 0);
-    const avgLikes = posts.length > 0 ? Math.round(totalLikes / posts.length) : 0;
+    const avgLikes = posts.length > 0 ? Math.round(totalLikes / posts.length) : null;
 
     const totalComments = posts.reduce((acc, p) => acc + p.comment_count, 0);
-    const avgComments = posts.length > 0 ? Math.round(totalComments / posts.length) : 0;
+    const avgComments = posts.length > 0 ? Math.round(totalComments / posts.length) : null;
 
-    const overallEng = profile.followers_count > 0 && posts.length > 0
-      ? Number((((avgLikes + avgComments) / profile.followers_count) * 100).toFixed(2))
-      : 0;
+    const hasFollowerDenominator = typeof profile.followers_count === 'number' && profile.followers_count > 0;
+    const overallEng = hasFollowerDenominator && posts.length > 0 && avgLikes !== null && avgComments !== null
+      ? Number((((avgLikes + avgComments) / (profile.followers_count as number)) * 100).toFixed(2))
+      : null;
 
     // Rank top performing reels by plays or likes
     const sortedReels = [...reels].sort((a, b) => {
@@ -671,18 +755,33 @@ export class GhostService {
       const playsB = b.video_play_count || b.like_count || 0;
       return playsB - playsA;
     });
-    const topPerformingReels = sortedReels.slice(0, 3).map(r => ({
-      id: r.id,
-      shortcode: r.shortcode,
-      plays: r.video_play_count || 0,
-      likes: r.like_count,
-      comments: r.comment_count,
-      engagement_rate: r.video_play_count && r.video_play_count > 0
-        ? Number((((r.like_count + r.comment_count) / r.video_play_count) * 100).toFixed(2))
-        : (profile.followers_count > 0 ? Number((((r.like_count + r.comment_count) / profile.followers_count) * 100).toFixed(2)) : 0),
-      caption_snippet: r.caption ? r.caption.slice(0, 100) : '',
-      permalink: r.permalink
-    }));
+    const topPerformingReels = sortedReels.slice(0, 3).map(r => {
+      const hasViewDenom = typeof r.video_play_count === 'number' && r.video_play_count > 0;
+      const hasFollowerDenom = typeof profile.followers_count === 'number' && profile.followers_count > 0;
+
+      let engRate: number | null = null;
+      let engDenominator: 'views' | 'followers' | null = null;
+
+      if (hasViewDenom) {
+        engRate = Number((((r.like_count + r.comment_count) / (r.video_play_count as number)) * 100).toFixed(2));
+        engDenominator = 'views';
+      } else if (hasFollowerDenom) {
+        engRate = Number((((r.like_count + r.comment_count) / (profile.followers_count as number)) * 100).toFixed(2));
+        engDenominator = 'followers';
+      }
+
+      return {
+        id: r.id,
+        shortcode: r.shortcode,
+        plays: typeof r.video_play_count === 'number' ? r.video_play_count : null,
+        likes: r.like_count,
+        comments: r.comment_count,
+        engagement_rate: engRate,
+        engagement_rate_denominator: engDenominator,
+        caption_snippet: r.caption ? r.caption.slice(0, 100) : '',
+        permalink: r.permalink
+      };
+    });
 
     // Rank discussion driver posts by comments and comment-to-like ratio
     const sortedDiscussions = [...posts].sort((a, b) => {
@@ -694,7 +793,7 @@ export class GhostService {
       id: p.id,
       shortcode: p.shortcode,
       comments: p.comment_count,
-      comment_to_like_ratio: p.like_count > 0 ? Number((p.comment_count / p.like_count).toFixed(3)) : p.comment_count,
+      comment_to_like_ratio: p.like_count > 0 ? Number((p.comment_count / p.like_count).toFixed(3)) : null,
       caption_snippet: p.caption ? p.caption.slice(0, 100) : ''
     }));
 
@@ -721,7 +820,7 @@ export class GhostService {
       content_mix: {
         reels_count: reels.length,
         feed_posts_count: feedPosts.length,
-        reels_share_pct: posts.length > 0 ? Math.round((reels.length / posts.length) * 100) : 0
+        reels_share_pct: posts.length > 0 ? Math.round((reels.length / posts.length) * 100) : null
       },
       top_performing_reels: topPerformingReels,
       discussion_driver_posts: discussionDrivers,

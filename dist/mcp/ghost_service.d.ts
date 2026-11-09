@@ -8,18 +8,18 @@
 import { TwinGraph } from '../twin_graph.js';
 import type { GraphSearchResponse, ViralExplorePost } from '../types/graph.js';
 export interface GhostProfileResult {
-    id: string;
+    id: string | null;
     username: string;
-    full_name: string;
-    biography: string;
-    external_url?: string;
-    followers_count: number;
-    following_count: number;
-    media_count: number;
-    is_verified: boolean;
-    is_private: boolean;
-    is_business: boolean;
-    profile_pic_url: string;
+    full_name: string | null;
+    biography: string | null;
+    external_url?: string | null;
+    followers_count: number | null;
+    following_count: number | null;
+    media_count: number | null;
+    is_verified: boolean | null;
+    is_private: boolean | null;
+    is_business: boolean | null;
+    profile_pic_url: string | null;
 }
 export interface GhostPostItem {
     id: string;
@@ -36,7 +36,7 @@ export interface GhostPostItem {
     video_duration?: number;
     thumbnail_url?: string;
     video_url?: string;
-    calculated_engagement_rate?: number;
+    calculated_engagement_rate?: number | null;
 }
 export interface GhostTimelineResult {
     username: string;
@@ -54,16 +54,17 @@ export interface GhostMediaMetricsResult {
     caption: string;
     timestamp?: string;
     metrics: {
-        video_plays?: number;
+        video_plays?: number | null;
         video_views?: number;
-        likes: number;
-        comments: number;
+        likes: number | null;
+        comments: number | null;
         shares?: number;
         saves?: number;
         reach?: number;
         impressions?: number;
-        engagement_rate: number;
-        comment_to_like_ratio?: number;
+        engagement_rate: number | null;
+        engagement_rate_denominator?: 'views' | 'followers' | null;
+        comment_to_like_ratio?: number | null;
     };
     retention?: {
         avg_watch_time_seconds?: number;
@@ -74,35 +75,36 @@ export interface GhostMediaMetricsResult {
 export interface GhostAuditReport {
     target: {
         username: string;
-        full_name: string;
-        followers: number;
-        following: number;
-        total_posts: number;
-        is_verified: boolean;
-        biography: string;
+        full_name: string | null;
+        followers: number | null;
+        following: number | null;
+        total_posts: number | null;
+        is_verified: boolean | null;
+        biography: string | null;
     };
     analyzed_sample_size: number;
     aggregate_metrics: {
         total_sampled_plays: number;
-        average_plays_per_reel: number;
+        average_plays_per_reel: number | null;
         total_sampled_likes: number;
-        average_likes_per_post: number;
+        average_likes_per_post: number | null;
         total_sampled_comments: number;
-        average_comments_per_post: number;
-        overall_engagement_rate_pct: number;
+        average_comments_per_post: number | null;
+        overall_engagement_rate_pct: number | null;
     };
     content_mix: {
         reels_count: number;
         feed_posts_count: number;
-        reels_share_pct: number;
+        reels_share_pct: number | null;
     };
     top_performing_reels: Array<{
         id: string;
         shortcode: string;
-        plays: number;
+        plays: number | null;
         likes: number;
         comments: number;
-        engagement_rate: number;
+        engagement_rate: number | null;
+        engagement_rate_denominator?: 'views' | 'followers' | null;
         caption_snippet: string;
         permalink: string;
     }>;
@@ -110,7 +112,7 @@ export interface GhostAuditReport {
         id: string;
         shortcode: string;
         comments: number;
-        comment_to_like_ratio: number;
+        comment_to_like_ratio: number | null;
         caption_snippet: string;
     }>;
     audit_timestamp: string;
