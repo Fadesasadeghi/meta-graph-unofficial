@@ -305,8 +305,18 @@ export class GhostService {
                                     media_product_type: mediaProductType,
                                     caption: captionText,
                                     timestamp: n.taken_at ? new Date(n.taken_at * 1000).toISOString() : undefined,
-                                    like_count: typeof n.like_count === 'number' ? n.like_count : (n.edge_media_preview_like?.count ?? 0),
-                                    comment_count: typeof n.comment_count === 'number' ? n.comment_count : (n.edge_media_to_comment?.count ?? 0),
+                                    like_count: typeof n.like_count === 'number' && Number.isFinite(n.like_count) && n.like_count >= 0
+                                        ? n.like_count
+                                        : (typeof n.edge_media_preview_like?.count === 'number' &&
+                                            Number.isFinite(n.edge_media_preview_like.count) &&
+                                            n.edge_media_preview_like.count >= 0
+                                            ? n.edge_media_preview_like.count : null),
+                                    comment_count: typeof n.comment_count === 'number' && Number.isFinite(n.comment_count) && n.comment_count >= 0
+                                        ? n.comment_count
+                                        : (typeof n.edge_media_to_comment?.count === 'number' &&
+                                            Number.isFinite(n.edge_media_to_comment.count) &&
+                                            n.edge_media_to_comment.count >= 0
+                                            ? n.edge_media_to_comment.count : null),
                                     video_play_count: n.video_play_count || undefined,
                                     thumbnail_url: n.display_uri || n.display_url || '',
                                     permalink: `https://www.instagram.com/p/${shortcode}/`
@@ -594,56 +604,64 @@ export class GhostService {
         const avgPlays = reelsWithKnownPlays.length > 0
             ? Math.round(totalPlays / reelsWithKnownPlays.length)
             : null;
-        const totalLikes = posts.reduce((acc, p) => acc + p.like_count, 0);
-        const avgLikes = posts.length > 0 ? Math.round(totalLikes / posts.length) : null;
-        const totalComments = posts.reduce((acc, p) => acc + p.comment_count, 0);
-        const avgComments = posts.length > 0 ? Math.round(totalComments / posts.length) : null;
-        const hasFollowerDenominator = typeof profile.followers_count === 'number' && profile.followers_count > 0;
-        const overallEng = hasFollowerDenominator && posts.length > 0 && avgLikes !== null && avgComments !== null
-            ? Number((((avgLikes + avgComments) / profile.followers_count) * 100).toFixed(2))
+        const validMetric = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+        const knownLikes = posts.filter(p => validMetric(p.like_count));
+        const knownComments = posts.filter(p => validMetric(p.comment_count));
+        const totalLikes = knownLikes.length
+            ? knownLikes.reduce((sum, p) => sum + p.like_count, 0)
             : null;
-        // Rank top performing reels by plays or likes
-        const sortedReels = [...reels].sort((a, b) => {
-            const playsA = a.video_play_count || a.like_count || 0;
-            const playsB = b.video_play_count || b.like_count || 0;
-            return playsB - playsA;
-        });
+        const totalComments = knownComments.length
+            ? knownComments.reduce((sum, p) => sum + p.comment_count, 0)
+            : null;
+        const avgLikes = totalLikes !== null
+            ? Math.round(totalLikes / knownLikes.length) : null;
+        const avgComments = totalComments !== null
+            ? Math.round(totalComments / knownComments.length) : null;
+        const completeEngagementPosts = posts.filter(p => validMetric(p.like_count) && validMetric(p.comment_count));
+        const followerCount = profile.followers_count;
+        const overallEng = validMetric(followerCount) && followerCount > 0 &&
+            completeEngagementPosts.length > 0
+            ? Number((completeEngagementPosts.reduce((sum, p) => sum + p.like_count + p.comment_count, 0) / completeEngagementPosts.length / followerCount * 100).toFixed(2))
+            : null;
+        const reelsWithPlays = reels.filter(r => validMetric(r.video_play_count));
+        const rankingCandidates = reelsWithPlays.length > 0
+            ? reelsWithPlays
+            : reels.filter(r => validMetric(r.like_count));
+        const sortedReels = [...rankingCandidates].sort((a, b) => reelsWithPlays.length > 0
+            ? b.video_play_count - a.video_play_count
+            : b.like_count - a.like_count);
         const topPerformingReels = sortedReels.slice(0, 3).map(r => {
-            const hasViewDenom = typeof r.video_play_count === 'number' && r.video_play_count > 0;
-            const hasFollowerDenom = typeof profile.followers_count === 'number' && profile.followers_count > 0;
-            let engRate = null;
-            let engDenominator = null;
-            if (hasViewDenom) {
-                engRate = Number((((r.like_count + r.comment_count) / r.video_play_count) * 100).toFixed(2));
-                engDenominator = 'views';
-            }
-            else if (hasFollowerDenom) {
-                engRate = Number((((r.like_count + r.comment_count) / profile.followers_count) * 100).toFixed(2));
-                engDenominator = 'followers';
-            }
+            const hasPlays = validMetric(r.video_play_count) && r.video_play_count > 0;
+            const hasFollowers = validMetric(followerCount) && followerCount > 0;
+            const hasEngagement = validMetric(r.like_count) && validMetric(r.comment_count);
+            const denominator = hasPlays ? r.video_play_count
+                : hasFollowers ? followerCount : null;
+            const denominatorType = hasPlays ? 'views' : hasFollowers ? 'followers' : null;
             return {
                 id: r.id,
                 shortcode: r.shortcode,
-                plays: typeof r.video_play_count === 'number' ? r.video_play_count : null,
+                plays: validMetric(r.video_play_count) ? r.video_play_count : null,
                 likes: r.like_count,
                 comments: r.comment_count,
-                engagement_rate: engRate,
-                engagement_rate_denominator: engDenominator,
+                engagement_rate: hasEngagement && denominator !== null
+                    ? Number(((r.like_count + r.comment_count) /
+                        denominator * 100).toFixed(2))
+                    : null,
+                engagement_rate_denominator: denominatorType,
                 caption_snippet: r.caption ? r.caption.slice(0, 100) : '',
                 permalink: r.permalink
             };
         });
-        // Rank discussion driver posts by comments and comment-to-like ratio
-        const sortedDiscussions = [...posts].sort((a, b) => {
-            const ratioA = a.like_count > 0 ? (a.comment_count / a.like_count) : a.comment_count;
-            const ratioB = b.like_count > 0 ? (b.comment_count / b.like_count) : b.comment_count;
-            return (ratioB + b.comment_count) - (ratioA + a.comment_count);
-        });
+        const sortedDiscussions = posts
+            .filter(p => validMetric(p.comment_count))
+            .sort((a, b) => b.comment_count - a.comment_count);
         const discussionDrivers = sortedDiscussions.slice(0, 3).map(p => ({
             id: p.id,
             shortcode: p.shortcode,
             comments: p.comment_count,
-            comment_to_like_ratio: p.like_count > 0 ? Number((p.comment_count / p.like_count).toFixed(3)) : null,
+            comment_to_like_ratio: validMetric(p.like_count) && p.like_count > 0
+                ? Number((p.comment_count / p.like_count).toFixed(3))
+                : null,
             caption_snippet: p.caption ? p.caption.slice(0, 100) : ''
         }));
         return {
@@ -662,8 +680,10 @@ export class GhostService {
                 average_plays_per_reel: avgPlays,
                 total_sampled_likes: totalLikes,
                 average_likes_per_post: avgLikes,
+                known_likes_count: knownLikes.length,
                 total_sampled_comments: totalComments,
                 average_comments_per_post: avgComments,
+                known_comments_count: knownComments.length,
                 overall_engagement_rate_pct: overallEng
             },
             content_mix: {

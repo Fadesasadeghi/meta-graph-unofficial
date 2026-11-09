@@ -393,8 +393,8 @@ try {
   assert.strictEqual(auditReport8.aggregate_metrics.average_likes_per_post, 275);
   assert.strictEqual(auditReport8.aggregate_metrics.total_sampled_comments, 110);
   assert.strictEqual(auditReport8.aggregate_metrics.average_comments_per_post, 28);
-  // (275 + 28) / 10000 * 100 = 3.03%
-  assert.strictEqual(auditReport8.aggregate_metrics.overall_engagement_rate_pct, 3.03);
+  // Engagement uses unrounded source totals: (1100 + 110) / 4 / 10000 * 100.
+  assert.strictEqual(auditReport8.aggregate_metrics.overall_engagement_rate_pct, 3.02);
   assert.strictEqual(auditReport8.content_mix.reels_share_pct, 50);
 
   // Top reel: (550 / 5000) * 100 = 11% with views denominator

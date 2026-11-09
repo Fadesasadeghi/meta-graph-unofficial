@@ -29,8 +29,8 @@ export interface GhostPostItem {
     media_product_type?: string;
     caption: string;
     timestamp?: string;
-    like_count: number;
-    comment_count: number;
+    like_count: number | null;
+    comment_count: number | null;
     video_play_count?: number;
     video_view_count?: number;
     video_duration?: number;
@@ -86,10 +86,12 @@ export interface GhostAuditReport {
     aggregate_metrics: {
         total_sampled_plays: number;
         average_plays_per_reel: number | null;
-        total_sampled_likes: number;
+        total_sampled_likes: number | null;
         average_likes_per_post: number | null;
-        total_sampled_comments: number;
+        known_likes_count: number;
+        total_sampled_comments: number | null;
         average_comments_per_post: number | null;
+        known_comments_count: number;
         overall_engagement_rate_pct: number | null;
     };
     content_mix: {
@@ -101,8 +103,8 @@ export interface GhostAuditReport {
         id: string;
         shortcode: string;
         plays: number | null;
-        likes: number;
-        comments: number;
+        likes: number | null;
+        comments: number | null;
         engagement_rate: number | null;
         engagement_rate_denominator?: 'views' | 'followers' | null;
         caption_snippet: string;
@@ -111,7 +113,7 @@ export interface GhostAuditReport {
     discussion_driver_posts: Array<{
         id: string;
         shortcode: string;
-        comments: number;
+        comments: number | null;
         comment_to_like_ratio: number | null;
         caption_snippet: string;
     }>;
