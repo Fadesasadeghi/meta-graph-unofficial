@@ -1,3 +1,4 @@
+import { assertPublishingAllowed, type PublishingMode } from '../publishing/publish_guard.js';
 /**
  * MediaTwin - Media Insights, Hardware Codec Parameters & Publishing Pipelines
  * 
@@ -31,7 +32,11 @@ export class MediaTwin {
   private transport: TwinTransport;
   private codecProfile: HardwareCodecProfile;
 
-  constructor(deviceTwin?: DeviceTwin, graphqlTwin?: GraphQLTwin) {
+  constructor(
+    deviceTwin?: DeviceTwin,
+    graphqlTwin?: GraphQLTwin,
+    private readonly publishingMode: PublishingMode = 'demo'
+  ) {
     this.deviceTwin = deviceTwin || new DeviceTwin();
     this.graphqlTwin = graphqlTwin || new GraphQLTwin(this.deviceTwin);
     this.transport = new TwinTransport({
@@ -229,6 +234,7 @@ export class MediaTwin {
    * Step 1: Create Media Container (`POST /{user-id}/media`)
    */
   public async createMediaContainer(params: PublishMediaParams): Promise<{ id: string; status: string }> {
+    assertPublishingAllowed(this.publishingMode);
     const mediaType = params.media_type || 'REELS';
     this.validateMediaForHardwareCodec(mediaType);
 
@@ -249,6 +255,7 @@ export class MediaTwin {
    * Polling Container Status (`GET /{container-id}?fields=status_code`)
    */
   public async checkContainerStatus(containerId: string): Promise<{ id: string; status_code: string }> {
+    assertPublishingAllowed(this.publishingMode);
     return {
       id: containerId,
       status_code: 'FINISHED'
@@ -259,6 +266,7 @@ export class MediaTwin {
    * Step 2: Publish Media Container (`POST /{user-id}/media_publish`)
    */
   public async publishMediaContainer(containerId: string): Promise<{ id: string }> {
+    assertPublishingAllowed(this.publishingMode);
     return {
       id: containerId
     };
@@ -287,6 +295,7 @@ export class MediaTwin {
     disableComments?: boolean;
     likeAndViewCountsDisabled?: boolean;
   }): Promise<{ id: string; media_id: string; fbid: string; status: string; caption_info: ParsedCaptionInfo }> {
+    assertPublishingAllowed(this.publishingMode);
     const captionInfo = this.parseAndValidateCaption(params.caption || '');
     this.validateMediaForHardwareCodec('IMAGE');
 
@@ -316,6 +325,7 @@ export class MediaTwin {
     textOverlays?: any[];
     stickers?: any[];
   }): Promise<{ id: string; media_id: string; fbid: string; is_reel_media: boolean; expiring_at: number; status: string }> {
+    assertPublishingAllowed(this.publishingMode);
     const mediaType = (params.videoUrl || params.videoBuffer) ? 'VIDEO' : 'IMAGE';
     this.validateMediaForHardwareCodec(mediaType === 'VIDEO' ? 'STORIES' : 'STORIES');
 
@@ -349,6 +359,7 @@ export class MediaTwin {
     shareToFeed?: boolean;
     durationMs?: number;
   }): Promise<{ id: string; media_id: string; fbid: string; status: string; caption_info: ParsedCaptionInfo }> {
+    assertPublishingAllowed(this.publishingMode);
     const captionInfo = this.parseAndValidateCaption(params.caption || '');
     this.validateMediaForHardwareCodec('REELS');
 
@@ -374,6 +385,7 @@ export class MediaTwin {
     text: string;
     audience?: 'followers_you_follow_back' | 'close_friends';
   }): Promise<{ id: string; text: string; created_at: number; expires_at: number; user_id: string; audience: string; status: string }> {
+    assertPublishingAllowed(this.publishingMode);
     const text = params.text.trim();
     if (text.length > 60) {
       throw new Error(`Instagram Note exceeds 60 characters limit (${text.length} characters).`);

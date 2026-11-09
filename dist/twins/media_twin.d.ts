@@ -1,19 +1,14 @@
-/**
- * MediaTwin - Media Insights, Hardware Codec Parameters & Publishing Pipelines
- *
- * Accurately models physical Qualcomm SM6225 hardware codec acceleration
- * (`c2.qti.hevc.encoder`, `c2.qti.heic.encoder`) and implements the complete
- * 2-step Meta Graph API v21.0 media publishing lifecycle (`/{user_id}/media` + `media_publish`).
- */
+import { type PublishingMode } from '../publishing/publish_guard.js';
 import { DeviceTwin } from './device_twin.js';
 import { GraphQLTwin } from './graphql_twin.js';
 import { GraphMedia, GraphInsightsResponse, PublishMediaParams, HardwareCodecProfile, ParsedCaptionInfo, GraphReelInsights, GraphPostInsights, ExtendedAnalyticsTimeframe, CustomDateRange, FilteredContentResponse, GraphComment } from '../types/graph.js';
 export declare class MediaTwin {
+    private readonly publishingMode;
     private deviceTwin;
     private graphqlTwin;
     private transport;
     private codecProfile;
-    constructor(deviceTwin?: DeviceTwin, graphqlTwin?: GraphQLTwin);
+    constructor(deviceTwin?: DeviceTwin, graphqlTwin?: GraphQLTwin, publishingMode?: PublishingMode);
     /**
      * Returns physical Qualcomm hardware codec acceleration profile
      */

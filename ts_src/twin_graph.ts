@@ -90,7 +90,11 @@ export class TwinGraph {
     this._device = new DeviceTwin(sessionInput);
     this._graphql = new GraphQLTwin(this._device);
     this._direct = new DirectTwin(this._device, { offlineMode: this.offlineMode });
-    this._media = new MediaTwin(this._device, this._graphql);
+    this._media = new MediaTwin(
+      this._device,
+      this._graphql,
+      options.publishingMode ?? 'demo'
+    );
     this._web = new WebTwin(undefined, typeof sessionInput === 'string' ? sessionInput : DEFAULT_SESSION_PATH);
     this._discovery = new DiscoveryTwin(this._device, { offlineMode: this.offlineMode });
     this._dashboard = new DashboardTwin(this._device, { offlineMode: this.offlineMode });
@@ -310,7 +314,10 @@ export class TwinGraph {
     // 6. Route: /{user_id}/media_publish
     const mediaPublishMatch = unversioned.match(/^\/(?:[a-zA-Z0-9_-]+\/)?media_publish\/?$/);
     if (mediaPublishMatch && method === 'POST') {
-      const containerId = params.creation_id || params.id || `180${Date.now().toString().slice(-8)}`;
+      const containerId = params.creation_id || params.id;
+      if (typeof containerId !== 'string' || !containerId.trim()) {
+        throw new Error("Missing required field 'creation_id'");
+      }
       return (await this._media.publishMediaContainer(containerId)) as unknown as T;
     }
 

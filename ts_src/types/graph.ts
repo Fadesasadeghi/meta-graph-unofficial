@@ -168,6 +168,7 @@ export interface ParsedCaptionInfo {
 
 
 export interface ClientOptions {
+  publishingMode?: 'demo' | 'live';
   accessToken?: string;
   appId?: string;
   apiVersion?: string;

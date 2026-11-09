@@ -1,3 +1,4 @@
+import { assertPublishingAllowed } from '../publishing/publish_guard.js';
 /**
  * MediaTwin - Media Insights, Hardware Codec Parameters & Publishing Pipelines
  *
@@ -11,11 +12,13 @@ import { GraphQLTwin } from './graphql_twin.js';
 import { DashboardTwin } from './dashboard_twin.js';
 import { TwinTransport } from './transport.js';
 export class MediaTwin {
+    publishingMode;
     deviceTwin;
     graphqlTwin;
     transport;
     codecProfile;
-    constructor(deviceTwin, graphqlTwin) {
+    constructor(deviceTwin, graphqlTwin, publishingMode = 'demo') {
+        this.publishingMode = publishingMode;
         this.deviceTwin = deviceTwin || new DeviceTwin();
         this.graphqlTwin = graphqlTwin || new GraphQLTwin(this.deviceTwin);
         this.transport = new TwinTransport({
@@ -190,6 +193,7 @@ export class MediaTwin {
      * Step 1: Create Media Container (`POST /{user-id}/media`)
      */
     async createMediaContainer(params) {
+        assertPublishingAllowed(this.publishingMode);
         const mediaType = params.media_type || 'REELS';
         this.validateMediaForHardwareCodec(mediaType);
         if (params.caption) {
@@ -206,6 +210,7 @@ export class MediaTwin {
      * Polling Container Status (`GET /{container-id}?fields=status_code`)
      */
     async checkContainerStatus(containerId) {
+        assertPublishingAllowed(this.publishingMode);
         return {
             id: containerId,
             status_code: 'FINISHED'
@@ -215,6 +220,7 @@ export class MediaTwin {
      * Step 2: Publish Media Container (`POST /{user-id}/media_publish`)
      */
     async publishMediaContainer(containerId) {
+        assertPublishingAllowed(this.publishingMode);
         return {
             id: containerId
         };
@@ -233,6 +239,7 @@ export class MediaTwin {
      * Official Meta Graph API v21.0 Mapping: POST /{ig-user-id}/media + POST /{ig-user-id}/media_publish
      */
     async publishFeedPost(params) {
+        assertPublishingAllowed(this.publishingMode);
         const captionInfo = this.parseAndValidateCaption(params.caption || '');
         this.validateMediaForHardwareCodec('IMAGE');
         const timestamp = Date.now();
@@ -252,6 +259,7 @@ export class MediaTwin {
      * Official Meta Graph API v21.0 Mapping: POST /{ig-user-id}/media?media_type=STORIES + POST /{ig-user-id}/media_publish
      */
     async publishStory(params) {
+        assertPublishingAllowed(this.publishingMode);
         const mediaType = (params.videoUrl || params.videoBuffer) ? 'VIDEO' : 'IMAGE';
         this.validateMediaForHardwareCodec(mediaType === 'VIDEO' ? 'STORIES' : 'STORIES');
         const timestamp = Date.now();
@@ -273,6 +281,7 @@ export class MediaTwin {
      * Official Meta Graph API v21.0 Mapping: POST /{ig-user-id}/media?media_type=REELS + POST /{ig-user-id}/media_publish
      */
     async publishReel(params) {
+        assertPublishingAllowed(this.publishingMode);
         const captionInfo = this.parseAndValidateCaption(params.caption || '');
         this.validateMediaForHardwareCodec('REELS');
         const timestamp = Date.now();
@@ -292,6 +301,7 @@ export class MediaTwin {
      * Max 60 characters
      */
     async publishNote(params) {
+        assertPublishingAllowed(this.publishingMode);
         const text = params.text.trim();
         if (text.length > 60) {
             throw new Error(`Instagram Note exceeds 60 characters limit (${text.length} characters).`);
