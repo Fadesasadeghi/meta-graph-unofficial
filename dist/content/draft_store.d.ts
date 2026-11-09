@@ -5,7 +5,10 @@ export interface InstagramDraft {
     caption: string;
     mediaUrl?: string;
     hashtags: string[];
-    status: 'draft';
+    status: 'draft' | 'scheduled';
+    scheduledAt?: string;
+    timezone?: string;
+    localDateTime?: string;
     createdAt: string;
 }
 export interface CreateDraftInput {
@@ -20,5 +23,8 @@ export declare class DraftStore {
     create(input: CreateDraftInput): Promise<InstagramDraft>;
     list(): Promise<InstagramDraft[]>;
     update(id: string, changes: Partial<Pick<InstagramDraft, 'caption' | 'mediaUrl' | 'hashtags'>>): Promise<InstagramDraft>;
+    schedule(id: string, localDateTime: string, timezone: string): Promise<InstagramDraft>;
+    cancelSchedule(id: string): Promise<InstagramDraft>;
+    private saveExisting;
     get(id: string): Promise<InstagramDraft>;
 }

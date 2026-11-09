@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, readdir, rename, unlink } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { resolveScheduleTime } from './schedule_time.js';
 export class DraftStore {
     directory;
     constructor(directory = process.env.INSTAGRAM_DRAFT_DIR
@@ -87,7 +88,7 @@ export class DraftStore {
             ...changes,
             id: current.id,
             type: current.type,
-            status: 'draft',
+            status: current.status,
             createdAt: current.createdAt
         };
         const file = join(this.directory, `${id}.json`);
@@ -107,6 +108,45 @@ export class DraftStore {
             throw error;
         }
         return updated;
+    }
+    async schedule(id, localDateTime, timezone) {
+        const current = await this.get(id);
+        const scheduleTime = resolveScheduleTime(localDateTime, timezone);
+        const updated = {
+            ...current,
+            ...scheduleTime,
+            status: 'scheduled'
+        };
+        await this.saveExisting(id, updated);
+        return updated;
+    }
+    async cancelSchedule(id) {
+        const current = await this.get(id);
+        const { scheduledAt, timezone, localDateTime, ...rest } = current;
+        const updated = {
+            ...rest,
+            status: 'draft'
+        };
+        await this.saveExisting(id, updated);
+        return updated;
+    }
+    async saveExisting(id, draft) {
+        const file = join(this.directory, `${id}.json`);
+        const temporary = join(this.directory, `${id}.${randomUUID()}.tmp`);
+        const handle = await open(temporary, 'wx', 0o600);
+        try {
+            await handle.writeFile(JSON.stringify(draft, null, 2), 'utf8');
+        }
+        finally {
+            await handle.close();
+        }
+        try {
+            await rename(temporary, file);
+        }
+        catch (error) {
+            await unlink(temporary).catch(() => { });
+            throw error;
+        }
     }
     async get(id) {
         if (!/^[0-9a-f-]{36}$/i.test(id)) {

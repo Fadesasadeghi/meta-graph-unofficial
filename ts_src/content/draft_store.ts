@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, readdir, rename, unlink } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { resolveScheduleTime } from './schedule_time.js';
 
 export type DraftType = 'post' | 'story' | 'reel';
 
@@ -10,7 +11,10 @@ export interface InstagramDraft {
   caption: string;
   mediaUrl?: string;
   hashtags: string[];
-  status: 'draft';
+  status: 'draft' | 'scheduled';
+  scheduledAt?: string;
+  timezone?: string;
+  localDateTime?: string;
   createdAt: string;
 }
 
@@ -136,7 +140,7 @@ export class DraftStore {
       ...changes,
       id: current.id,
       type: current.type,
-      status: 'draft',
+      status: current.status,
       createdAt: current.createdAt
     };
 
@@ -159,6 +163,67 @@ export class DraftStore {
     }
 
     return updated;
+  }
+
+  async schedule(
+    id: string,
+    localDateTime: string,
+    timezone: string
+  ): Promise<InstagramDraft> {
+    const current = await this.get(id);
+
+    const scheduleTime = resolveScheduleTime(localDateTime, timezone);
+
+    const updated: InstagramDraft = {
+      ...current,
+      ...scheduleTime,
+      status: 'scheduled'
+    };
+
+    await this.saveExisting(id, updated);
+    return updated;
+  }
+
+  async cancelSchedule(id: string): Promise<InstagramDraft> {
+    const current = await this.get(id);
+
+    const {
+      scheduledAt,
+      timezone,
+      localDateTime,
+      ...rest
+    } = current;
+
+    const updated: InstagramDraft = {
+      ...rest,
+      status: 'draft'
+    };
+
+    await this.saveExisting(id, updated);
+    return updated;
+  }
+
+  private async saveExisting(
+    id: string,
+    draft: InstagramDraft
+  ): Promise<void> {
+    const file = join(this.directory, `${id}.json`);
+    const temporary = join(this.directory, `${id}.${randomUUID()}.tmp`);
+
+    const handle = await open(temporary, 'wx', 0o600);
+
+    try {
+      await handle.writeFile(JSON.stringify(draft, null, 2), 'utf8');
+    } finally {
+      await handle.close();
+    }
+
+    try {
+      await rename(temporary, file);
+    } catch (error) {
+      await unlink(temporary).catch(() => {});
+      throw error;
+    }
   }
 
   async get(id: string): Promise<InstagramDraft> {

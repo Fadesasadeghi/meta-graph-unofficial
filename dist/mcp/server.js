@@ -13,9 +13,11 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { GhostService } from './ghost_service.js';
 import { DraftStore } from '../content/draft_store.js';
+import { TimezoneStore } from '../settings/timezone_store.js';
 // Initialize the Ghost Service (wraps TwinGraph & Mobile/Web Twins)
 const ghost = new GhostService();
 const drafts = new DraftStore();
+const timezones = new TimezoneStore();
 const SERVER_NAME = 'meta-graph-ghost-mcp';
 const SERVER_VERSION = '1.0.0';
 const server = new Server({
@@ -28,6 +30,64 @@ const server = new Server({
 });
 // 1. Tool Definitions
 const GHOST_TOOLS = [
+    {
+        name: 'instagram_schedule_draft',
+        description: 'Schedule an existing Instagram draft locally using the user-confirmed timezone. Never publishes content. If timezone is not confirmed, ask the user to set it first.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                id: {
+                    type: 'string',
+                    description: 'ID of the existing draft.'
+                },
+                localDateTime: {
+                    type: 'string',
+                    description: 'Future local date and time in YYYY-MM-DDTHH:mm format, using the confirmed user timezone.'
+                }
+            },
+            required: ['id', 'localDateTime'],
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'instagram_cancel_schedule',
+        description: 'Cancel local scheduling for an existing Instagram draft. Does not publish or delete anything.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                id: {
+                    type: 'string',
+                    description: 'ID of the draft whose schedule should be cancelled.'
+                }
+            },
+            required: ['id'],
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'instagram_get_timezone',
+        description: 'Get the confirmed local timezone setting and detect a suggested system timezone. If not confirmed, ask the user to confirm or manually enter an IANA timezone before scheduling.',
+        inputSchema: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'instagram_set_timezone',
+        description: 'Save or change the local timezone explicitly chosen or confirmed by the user. Never call this tool without user confirmation. Accepts IANA timezones such as Asia/Tehran or Europe/Berlin.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                timezone: {
+                    type: 'string',
+                    description: 'User-confirmed IANA timezone, e.g. Asia/Tehran.'
+                }
+            },
+            required: ['timezone'],
+            additionalProperties: false
+        }
+    },
     {
         name: 'instagram_update_draft',
         description: 'Update an existing local Instagram draft. Does not publish anything.',
@@ -229,6 +289,72 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args = {} } = request.params;
     try {
         switch (name) {
+            case 'instagram_schedule_draft': {
+                const settings = await timezones.get();
+                if (!settings?.confirmed) {
+                    throw new Error('Timezone is not confirmed. Ask the user to manually set or confirm their timezone first.');
+                }
+                if (typeof args.id !== 'string' ||
+                    typeof args.localDateTime !== 'string') {
+                    throw new Error('Draft ID and localDateTime are required.');
+                }
+                const scheduled = await drafts.schedule(args.id, args.localDateTime, settings.timezone);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                message: 'Draft scheduled locally. Automatic publishing is not enabled.',
+                                draft: scheduled
+                            }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_cancel_schedule': {
+                if (typeof args.id !== 'string') {
+                    throw new Error('Draft ID is required.');
+                }
+                const cancelled = await drafts.cancelSchedule(args.id);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                message: 'Local schedule cancelled. Nothing was published.',
+                                draft: cancelled
+                            }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_get_timezone': {
+                const settings = await timezones.get();
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                settings,
+                                suggestedTimezone: TimezoneStore.detect(),
+                                requiresConfirmation: settings?.confirmed !== true,
+                                message: settings?.confirmed
+                                    ? 'Timezone is confirmed. The user can change it manually.'
+                                    : 'No confirmed timezone. Ask the user to confirm the suggestion or enter a timezone manually.'
+                            }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_set_timezone': {
+                if (typeof args.timezone !== 'string') {
+                    throw new Error('A manually selected or confirmed timezone is required.');
+                }
+                const settings = await timezones.set(args.timezone);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                message: 'Timezone saved locally. Nothing was published.',
+                                settings
+                            }, null, 2)
+                        }]
+                };
+            }
             case 'instagram_update_draft': {
                 const id = String(args.id || '');
                 const changes = {};

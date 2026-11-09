@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "node --test dist/test_twingraph.js qa/test_publishing_guard.mjs qa/test_instagram_drafts.mjs",
+    "test": "node --test dist/test_twingraph.js qa/test_publishing_guard.mjs qa/test_instagram_drafts.mjs qa/test_instagram_timezone.mjs qa/test_instagram_scheduling.mjs",
     "demo": "node --experimental-strip-types examples/verified_capabilities_demo.ts",
     "demo:dashboard": "node --experimental-strip-types examples/dashboard_demo.ts",
     "demo:granular": "node --experimental-strip-types examples/granular_content_insights_demo.ts",
@@ -38,6 +38,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "^0.5.1",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "socks-proxy-agent": "^10.1.0",
     "undici": "^8.12.2",
