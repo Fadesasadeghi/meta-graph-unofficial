@@ -265,13 +265,14 @@ export class GhostService {
                         const findContainer = (obj) => {
                             if (!obj || typeof obj !== 'object')
                                 return null;
-                            if (Array.isArray(obj.edges) && obj.edges.length > 0 && obj.edges[0]?.node) {
-                                return { edges: obj.edges, page_info: obj.page_info };
+                            const timeline = obj.edge_owner_to_timeline_media;
+                            if (timeline && Array.isArray(timeline.edges)) {
+                                return { edges: timeline.edges, page_info: timeline.page_info };
                             }
                             for (const k of Object.keys(obj)) {
-                                const r = findContainer(obj[k]);
-                                if (r)
-                                    return r;
+                                const result = findContainer(obj[k]);
+                                if (result)
+                                    return result;
                             }
                             return null;
                         };
@@ -286,6 +287,22 @@ export class GhostService {
                             }
                             for (const e of container.edges) {
                                 const n = e.node;
+                                if (!n || typeof n !== 'object')
+                                    continue;
+                                const owner = n.owner || n.user;
+                                if (owner && typeof owner === 'object') {
+                                    const ownerId = owner.id || owner.pk || owner.pk_id;
+                                    const ownerUsername = owner.username;
+                                    const expectedId = profile?.id || params.userId;
+                                    if (ownerId && expectedId && String(ownerId) !== String(expectedId)) {
+                                        continue;
+                                    }
+                                    if (ownerUsername && (profile?.username || cleanUsername) &&
+                                        String(ownerUsername).toLowerCase() !==
+                                            String(profile?.username || cleanUsername).toLowerCase()) {
+                                        continue;
+                                    }
+                                }
                                 const isVideo = n.media_type === 2 || n.__typename === 'XIGPolarisVideoMedia' || Boolean(n.is_video);
                                 const mediaType = isVideo ? 'VIDEO' : 'IMAGE';
                                 const mediaProductType = isVideo ? 'REELS' : 'FEED';
