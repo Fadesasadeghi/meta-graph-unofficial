@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "node --test dist/test_twingraph.js qa/test_publishing_guard.mjs qa/test_instagram_drafts.mjs qa/test_instagram_timezone.mjs qa/test_instagram_scheduling.mjs",
+    "test": "node --test dist/test_twingraph.js qa/test_publishing_guard.mjs qa/test_instagram_drafts.mjs qa/test_instagram_timezone.mjs qa/test_instagram_scheduling.mjs qa/test_instagram_mcp_scheduling.mjs",
     "demo": "node --experimental-strip-types examples/verified_capabilities_demo.ts",
     "demo:dashboard": "node --experimental-strip-types examples/dashboard_demo.ts",
     "demo:granular": "node --experimental-strip-types examples/granular_content_insights_demo.ts",
