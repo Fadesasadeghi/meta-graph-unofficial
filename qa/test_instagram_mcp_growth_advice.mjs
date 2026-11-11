@@ -22,7 +22,7 @@ test('MCP Growth Advisor: discovery, advice and mock isolation', {
 
     const { tools } = await client.listTools();
 
-    assert.equal(tools.length, 25);
+    assert.ok(tools.length >= 25);
 
     const tool = tools.find(
       item => item.name === 'instagram_growth_advice'

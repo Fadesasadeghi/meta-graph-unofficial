@@ -15,6 +15,7 @@ import { GhostService } from './ghost_service.js';
 import { MockInstagramProvider } from '../providers/mock_instagram_provider.js';
 import { InstagramAnalyticsService } from '../analytics/instagram_analytics_service.js';
 import { InstagramGrowthAdvisor } from '../advisor/instagram_growth_advisor.js';
+import { GrowthDraftPreparer } from '../advisor/growth_draft_preparer.js';
 import { DraftStore } from '../content/draft_store.js';
 import { TimezoneStore } from '../settings/timezone_store.js';
 import { AccountStore } from '../accounts/account_store.js';
@@ -283,6 +284,32 @@ const GHOST_TOOLS = [
                 }
             },
             required: ['type', 'caption']
+        }
+    },
+    {
+        name: 'instagram_preview_growth_draft',
+        description: 'Prepare an editable content draft preview from MOCK Growth Advisor evidence. Does not save, schedule or publish.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                accountId: {
+                    type: 'string',
+                    enum: ['demo-account-1']
+                },
+                experimentId: {
+                    type: 'string',
+                    enum: [
+                        'repeat-top-content-pattern',
+                        'reel-format-experiment'
+                    ]
+                },
+                type: {
+                    type: 'string',
+                    enum: ['post', 'story', 'reel']
+                }
+            },
+            required: ['accountId', 'experimentId', 'type'],
+            additionalProperties: false
         }
     },
     {
@@ -764,6 +791,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                                 message: 'Draft saved locally. Nothing was published.',
                                 draft
                             }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_preview_growth_draft': {
+                if (args.accountId !== 'demo-account-1') {
+                    throw new Error('Only demo-account-1 is supported.');
+                }
+                if (typeof args.experimentId !== 'string' ||
+                    !['post', 'story', 'reel'].includes(args.type)) {
+                    throw new Error('Valid experimentId and type are required.');
+                }
+                const analytics = new InstagramAnalyticsService(new MockInstagramProvider());
+                const result = await analytics.analyzeAccount(args.accountId);
+                if (!result.ok) {
+                    return {
+                        content: [{
+                                type: 'text',
+                                text: JSON.stringify(result, null, 2)
+                            }],
+                        isError: true
+                    };
+                }
+                const advice = new InstagramGrowthAdvisor().generate(result.data);
+                const preview = new GrowthDraftPreparer().prepare(advice, args.experimentId, args.type);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify(preview, null, 2)
                         }]
                 };
             }
