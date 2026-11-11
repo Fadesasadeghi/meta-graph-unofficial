@@ -25,6 +25,13 @@ import { DraftStore, type DraftType } from '../content/draft_store.js';
 import { TimezoneStore } from '../settings/timezone_store.js';
 import { AccountStore } from '../accounts/account_store.js';
 import { AccountDraftStore } from '../accounts/account_draft_store.js';
+import { ExperimentStore } from '../experiments/experiment_store.js';
+import { evaluateExperiment } from '../experiments/experiment_evaluator.js';
+import type {
+  ExperimentMetric,
+  ExperimentMeasurement,
+  ExperimentStatus
+} from '../experiments/types.js';
 import { getLocalOwnerId } from '../accounts/local_owner.js';
 import { OwnerTimezoneStore } from '../settings/owner_timezone_store.js';
 
@@ -34,6 +41,7 @@ const drafts = new DraftStore();
 const timezones = new TimezoneStore();
 const accounts = new AccountStore();
 const accountDrafts = new AccountDraftStore(accounts);
+const experiments = new ExperimentStore(accounts);
 const ownerTimezones = new OwnerTimezoneStore();
 
 const SERVER_NAME = 'meta-graph-ghost-mcp';
@@ -53,6 +61,78 @@ const server = new Server(
 
 // 1. Tool Definitions
 const GHOST_TOOLS: Tool[] = [
+  {
+    name: 'instagram_create_growth_experiment',
+    description: 'Create a local growth experiment for an owned Instagram account. No publishing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        accountId: { type: 'string' },
+        adviceExperimentId: { type: 'string' },
+        title: { type: 'string' },
+        hypothesis: { type: 'string' },
+        metric: {
+          type: 'string',
+          enum: ['engagement_rate', 'reach', 'plays', 'saves', 'shares', 'comments']
+        },
+        baseline: {
+          type: 'object',
+          properties: {
+            value: { type: 'number', minimum: 0 },
+            measuredAt: { type: 'string' },
+            source: { type: 'string', enum: ['mock', 'live'] },
+            mediaId: { type: 'string' }
+          },
+          required: ['value', 'measuredAt', 'source'],
+          additionalProperties: false
+        },
+        notes: { type: 'string' }
+      },
+      required: ['accountId', 'adviceExperimentId', 'title', 'hypothesis', 'metric'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'instagram_list_growth_experiments',
+    description: 'List stored experiments and their evaluations for an owned account.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        accountId: { type: 'string' }
+      },
+      required: ['accountId'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'instagram_update_growth_experiment',
+    description: 'Change experiment status and optionally save its outcome. No publishing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        accountId: { type: 'string' },
+        experimentId: { type: 'string' },
+        status: {
+          type: 'string',
+          enum: ['running', 'completed', 'cancelled']
+        },
+        outcome: {
+          type: 'object',
+          properties: {
+            value: { type: 'number', minimum: 0 },
+            measuredAt: { type: 'string' },
+            source: { type: 'string', enum: ['mock', 'live'] },
+            mediaId: { type: 'string' }
+          },
+          required: ['value', 'measuredAt', 'source'],
+          additionalProperties: false
+        }
+      },
+      required: ['accountId', 'experimentId', 'status'],
+      additionalProperties: false
+    }
+  },
+
   {
     name: 'instagram_update_account_draft',
     description: 'Update a local draft for a specified registered account. Does not publish anything.',
@@ -505,6 +585,76 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
+      case 'instagram_create_growth_experiment': {
+        const ownerId = getLocalOwnerId();
+
+        const record = await experiments.create(ownerId, {
+          accountId: args.accountId as string,
+          adviceExperimentId: args.adviceExperimentId as string,
+          title: args.title as string,
+          hypothesis: args.hypothesis as string,
+          metric: args.metric as ExperimentMetric,
+          ...(args.baseline !== undefined
+            ? { baseline: args.baseline as ExperimentMeasurement }
+            : {}),
+          ...(args.notes !== undefined
+            ? { notes: args.notes as string }
+            : {})
+        });
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(record, null, 2)
+          }]
+        };
+      }
+
+      case 'instagram_list_growth_experiments': {
+        const ownerId = getLocalOwnerId();
+        const records = await experiments.list(
+          ownerId,
+          args.accountId as string
+        );
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(
+              records.map(record => ({
+                ...record,
+                evaluation: evaluateExperiment(record)
+              })),
+              null,
+              2
+            )
+          }]
+        };
+      }
+
+      case 'instagram_update_growth_experiment': {
+        const ownerId = getLocalOwnerId();
+
+        const record = await experiments.updateStatus(
+          ownerId,
+          args.accountId as string,
+          args.experimentId as string,
+          args.status as ExperimentStatus,
+          args.outcome as ExperimentMeasurement | undefined
+        );
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              record,
+              evaluation: evaluateExperiment(record)
+            }, null, 2)
+          }]
+        };
+      }
+
+
       case 'instagram_update_account_draft': {
         const ownerId = getLocalOwnerId();
 

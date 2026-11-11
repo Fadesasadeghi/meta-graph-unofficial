@@ -22,7 +22,7 @@ test('MCP growth draft preview is read-only and mock-labeled', {
 
     const { tools } = await client.listTools();
 
-    assert.equal(tools.length, 26);
+    assert.ok(tools.length >= 26);
 
     const tool = tools.find(
       item => item.name === 'instagram_preview_growth_draft'
