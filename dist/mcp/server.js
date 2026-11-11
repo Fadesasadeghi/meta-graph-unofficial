@@ -16,6 +16,7 @@ import { MockInstagramProvider } from '../providers/mock_instagram_provider.js';
 import { InstagramAnalyticsService } from '../analytics/instagram_analytics_service.js';
 import { InstagramGrowthAdvisor } from '../advisor/instagram_growth_advisor.js';
 import { GrowthDraftPreparer } from '../advisor/growth_draft_preparer.js';
+import { adaptGrowthAdviceForAccount } from '../advisor/adaptive_account_advisor.js';
 import { DraftStore } from '../content/draft_store.js';
 import { TimezoneStore } from '../settings/timezone_store.js';
 import { AccountStore } from '../accounts/account_store.js';
@@ -44,6 +45,18 @@ const server = new Server({
 });
 // 1. Tool Definitions
 const GHOST_TOOLS = [
+    {
+        name: 'instagram_adaptive_growth_advice',
+        description: 'Generate adaptive growth advice for an owned local account using explicitly labeled MOCK recommendations and the account\'s stored experiment history. Read-only; does not publish.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                accountId: { type: 'string' }
+            },
+            required: ['accountId'],
+            additionalProperties: false
+        }
+    },
     {
         name: 'instagram_create_growth_experiment',
         description: 'Create a local growth experiment for an owned Instagram account. No publishing.',
@@ -558,6 +571,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args = {} } = request.params;
     try {
         switch (name) {
+            case 'instagram_adaptive_growth_advice': {
+                const ownerId = getLocalOwnerId();
+                if (typeof args.accountId !== 'string' ||
+                    !args.accountId.trim()) {
+                    throw new Error('Valid accountId is required.');
+                }
+                // The store enforces ownership before returning history.
+                const history = await experiments.list(ownerId, args.accountId);
+                const analytics = new InstagramAnalyticsService(new MockInstagramProvider());
+                const result = await analytics.analyzeAccount('demo-account-1');
+                if (!result.ok) {
+                    return {
+                        content: [{
+                                type: 'text',
+                                text: JSON.stringify(result, null, 2)
+                            }],
+                        isError: true
+                    };
+                }
+                const template = new InstagramGrowthAdvisor().generate(result.data);
+                const advice = adaptGrowthAdviceForAccount(template, args.accountId, history);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify(advice, null, 2)
+                        }]
+                };
+            }
             case 'instagram_create_growth_experiment': {
                 const ownerId = getLocalOwnerId();
                 const record = await experiments.create(ownerId, {
