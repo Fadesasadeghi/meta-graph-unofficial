@@ -19,11 +19,14 @@ import {
 import { GhostService } from './ghost_service.js';
 import { DraftStore, type DraftType } from '../content/draft_store.js';
 import { TimezoneStore } from '../settings/timezone_store.js';
+import { AccountStore } from '../accounts/account_store.js';
+import { getLocalOwnerId } from '../accounts/local_owner.js';
 
 // Initialize the Ghost Service (wraps TwinGraph & Mobile/Web Twins)
 const ghost = new GhostService();
 const drafts = new DraftStore();
 const timezones = new TimezoneStore();
+const accounts = new AccountStore();
 
 const SERVER_NAME = 'meta-graph-ghost-mcp';
 const SERVER_VERSION = '1.0.0';
@@ -42,6 +45,32 @@ const server = new Server(
 
 // 1. Tool Definitions
 const GHOST_TOOLS: Tool[] = [
+  {
+    name: 'instagram_add_local_account',
+    description: 'Register an Instagram account label locally for the configured owner. Does not connect to Instagram, verify ownership or grant publishing access. Ask for explicit user confirmation before registering.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        username: { type: 'string' },
+        accountType: {
+          type: 'string',
+          enum: ['personal', 'creator', 'business', 'unknown']
+        }
+      },
+      required: ['username', 'accountType'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'instagram_list_local_accounts',
+    description: 'List locally registered Instagram account labels for the configured owner. These are not authenticated Instagram connections.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false
+    }
+  },
+
   {
     name: 'instagram_schedule_draft',
     description: 'Schedule an existing Instagram draft locally using the user-confirmed timezone. Never publishes content. If timezone is not confirmed, ask the user to set it first.',
@@ -307,6 +336,51 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
+      case 'instagram_add_local_account': {
+        const ownerId = getLocalOwnerId();
+
+        if (
+          typeof args.username !== 'string' ||
+          typeof args.accountType !== 'string'
+        ) {
+          throw new Error('username and accountType are required.');
+        }
+
+        const account = await accounts.create({
+          ownerId,
+          username: args.username,
+          accountType: args.accountType as
+            'personal' | 'creator' | 'business' | 'unknown'
+        });
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              message: 'Account label saved locally. No Instagram connection or authorization was created.',
+              account
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'instagram_list_local_accounts': {
+        const ownerId = getLocalOwnerId();
+        const savedAccounts = await accounts.list(ownerId);
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              total: savedAccounts.length,
+              accounts: savedAccounts,
+              message: 'Local labels only. No Instagram connection is implied.'
+            }, null, 2)
+          }]
+        };
+      }
+
+
       case 'instagram_schedule_draft': {
         const settings = await timezones.get();
 

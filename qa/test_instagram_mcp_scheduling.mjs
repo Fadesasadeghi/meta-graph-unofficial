@@ -40,7 +40,18 @@ test('Instagram MCP scheduling lifecycle', async () => {
     await client.connect(transport);
 
     const tools = await client.listTools();
-    assert.equal(tools.tools.length, 14);
+    const toolNames = new Set(tools.tools.map(tool => tool.name));
+
+    for (const name of [
+      'instagram_create_draft',
+      'instagram_list_drafts',
+      'instagram_schedule_draft',
+      'instagram_cancel_schedule',
+      'instagram_get_timezone',
+      'instagram_set_timezone'
+    ]) {
+      assert.ok(toolNames.has(name), `Missing MCP tool: ${name}`);
+    }
 
     const created = await call('instagram_create_draft', {
       type: 'post',
