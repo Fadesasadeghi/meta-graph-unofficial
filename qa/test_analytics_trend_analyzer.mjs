@@ -145,3 +145,25 @@ test('detects unchanged metrics', () => {
 });
 
 console.log('Analytics Trend Analyzer tests loaded.');
+
+test('exposes structured media-history quality', () => {
+  const incomplete = analyzer.analyze(
+    snapshot({ complete: false }),
+    current()
+  );
+
+  const complete = analyzer.analyze(
+    snapshot(),
+    current()
+  );
+
+  assert.equal(
+    incomplete.dataQuality.completeMediaHistory,
+    false
+  );
+
+  assert.equal(
+    complete.dataQuality.completeMediaHistory,
+    true
+  );
+});

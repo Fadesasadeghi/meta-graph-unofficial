@@ -51,8 +51,9 @@ export class AnalyticsTrendAnalyzer {
         if (!engagementRate) {
             warnings.push('Engagement trend unavailable.');
         }
-        if (!previous.report.dataQuality.completeMediaHistory ||
-            !current.report.dataQuality.completeMediaHistory) {
+        const completeMediaHistory = previous.report.dataQuality.completeMediaHistory &&
+            current.report.dataQuality.completeMediaHistory;
+        if (!completeMediaHistory) {
             warnings.push('Incomplete media history may affect comparisons.');
         }
         return {
@@ -64,6 +65,11 @@ export class AnalyticsTrendAnalyzer {
             currentDate: current.capturedAt,
             followers,
             engagementRate,
+            dataQuality: {
+                completeMediaHistory,
+                previousCompletePosts: previous.report.dataQuality.postsWithCompleteEngagement,
+                currentCompletePosts: current.report.dataQuality.postsWithCompleteEngagement
+            },
             warnings
         };
     }

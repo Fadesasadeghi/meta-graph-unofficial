@@ -15,6 +15,11 @@ export interface AnalyticsTrendReport {
     currentDate: string;
     followers: MetricChange | null;
     engagementRate: MetricChange | null;
+    dataQuality: {
+        completeMediaHistory: boolean;
+        previousCompletePosts: number;
+        currentCompletePosts: number;
+    };
     warnings: string[];
 }
 export declare class AnalyticsTrendAnalyzer {
