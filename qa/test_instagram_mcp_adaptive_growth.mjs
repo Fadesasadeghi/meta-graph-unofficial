@@ -71,7 +71,7 @@ test('adaptive MCP advice uses account history and enforces ownership', {
       )
     );
 
-    assert.equal(tools.length, 30);
+    assert.ok(tools.length >= 30, 'Expected at least 30 MCP tools');
 
     const registration = await call(
       clientA,

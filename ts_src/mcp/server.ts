@@ -33,6 +33,8 @@ import type {
   ExperimentMeasurement,
   ExperimentStatus
 } from '../experiments/types.js';
+import { ActionQueue, type QueuedAction } from '../actions/action_queue.js';
+import { ActionApprovalStore } from '../actions/action_approval_store.js';
 import { getLocalOwnerId } from '../accounts/local_owner.js';
 import { OwnerTimezoneStore } from '../settings/owner_timezone_store.js';
 
@@ -41,6 +43,8 @@ const ghost = new GhostService();
 const drafts = new DraftStore();
 const timezones = new TimezoneStore();
 const accounts = new AccountStore();
+const actionQueue = new ActionQueue(accounts);
+const actionApprovals = new ActionApprovalStore(accounts, actionQueue);
 const accountDrafts = new AccountDraftStore(accounts);
 const experiments = new ExperimentStore(accounts);
 const ownerTimezones = new OwnerTimezoneStore();
@@ -62,6 +66,88 @@ const server = new Server(
 
 // 1. Tool Definitions
 const GHOST_TOOLS: Tool[] = [
+  {
+    name: 'instagram_queue_action',
+    description: 'Queue an Instagram action for independent user approval. Does not execute, publish or send anything.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        accountId: { type: 'string' },
+        idempotencyKey: { type: 'string' },
+        action: {
+          oneOf: [
+            {
+              type: 'object',
+              properties: {
+                kind: { type: 'string', enum: ['publish'] },
+                type: {
+                  type: 'string',
+                  enum: ['post', 'story', 'reel']
+                },
+                mediaUrl: { type: 'string' },
+                caption: { type: 'string' }
+              },
+              required: ['kind', 'type', 'mediaUrl'],
+              additionalProperties: false
+            },
+            {
+              type: 'object',
+              properties: {
+                kind: {
+                  type: 'string',
+                  enum: ['comment_reply']
+                },
+                commentId: { type: 'string' },
+                text: { type: 'string' }
+              },
+              required: ['kind', 'commentId', 'text'],
+              additionalProperties: false
+            },
+            {
+              type: 'object',
+              properties: {
+                kind: {
+                  type: 'string',
+                  enum: ['direct_message']
+                },
+                conversationId: { type: 'string' },
+                text: { type: 'string' }
+              },
+              required: ['kind', 'conversationId', 'text'],
+              additionalProperties: false
+            }
+          ]
+        }
+      },
+      required: ['accountId', 'idempotencyKey', 'action'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'instagram_list_pending_actions',
+    description: 'Read queued actions and their approval decisions for an owned Instagram account. Read-only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        accountId: { type: 'string' }
+      },
+      required: ['accountId'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'instagram_get_action_status',
+    description: 'Read the queue and approval status of an Instagram action. This tool does not confirm execution.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        accountId: { type: 'string' },
+        actionId: { type: 'string' }
+      },
+      required: ['accountId', 'actionId'],
+      additionalProperties: false
+    }
+  },
   {
     name: 'instagram_adaptive_growth_advice',
     description: 'Generate adaptive growth advice for an owned local account using explicitly labeled MOCK recommendations and the account\'s stored experiment history. Read-only; does not publish.',
@@ -599,6 +685,120 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
+      case 'instagram_queue_action': {
+        const ownerId = getLocalOwnerId();
+
+        if (
+          typeof args.accountId !== 'string' ||
+          typeof args.idempotencyKey !== 'string' ||
+          !args.action ||
+          typeof args.action !== 'object' ||
+          Array.isArray(args.action)
+        ) {
+          throw new Error('Invalid action queue request.');
+        }
+
+        const result = await actionQueue.enqueue(
+          ownerId,
+          args.accountId,
+          args.idempotencyKey,
+          args.action as QueuedAction
+        );
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              ...result,
+              executed: false,
+              message: 'Queued for independent user approval.'
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'instagram_list_pending_actions': {
+        const ownerId = getLocalOwnerId();
+
+        if (typeof args.accountId !== 'string') {
+          throw new Error('Valid accountId is required.');
+        }
+
+        const actions = await actionQueue.list(
+          ownerId,
+          args.accountId
+        );
+
+        const result = [];
+
+        for (const action of actions) {
+          const approval = await actionApprovals.get(
+            ownerId,
+            args.accountId,
+            action.id
+          );
+
+          if (!approval) {
+            result.push({
+              ...action,
+              approvalStatus: 'pending'
+            });
+          }
+        }
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              accountId: args.accountId,
+              actions: result,
+              executed: false
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'instagram_get_action_status': {
+        const ownerId = getLocalOwnerId();
+
+        if (
+          typeof args.accountId !== 'string' ||
+          typeof args.actionId !== 'string'
+        ) {
+          throw new Error('Invalid action status request.');
+        }
+
+        const actions = await actionQueue.list(
+          ownerId,
+          args.accountId
+        );
+
+        const action = actions.find(
+          item => item.id === args.actionId
+        );
+
+        if (!action) {
+          throw new Error('Action not found for this account.');
+        }
+
+        const approval = await actionApprovals.get(
+          ownerId,
+          args.accountId,
+          args.actionId
+        );
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              action,
+              approvalStatus: approval?.decision ?? 'pending',
+              executionStatus: 'not_checked'
+            }, null, 2)
+          }]
+        };
+      }
+
       case 'instagram_adaptive_growth_advice': {
         const ownerId = getLocalOwnerId();
 
