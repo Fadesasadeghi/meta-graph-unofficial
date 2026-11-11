@@ -14,6 +14,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { GhostService } from './ghost_service.js';
 import { MockInstagramProvider } from '../providers/mock_instagram_provider.js';
 import { InstagramAnalyticsService } from '../analytics/instagram_analytics_service.js';
+import { InstagramGrowthAdvisor } from '../advisor/instagram_growth_advisor.js';
 import { DraftStore } from '../content/draft_store.js';
 import { TimezoneStore } from '../settings/timezone_store.js';
 import { AccountStore } from '../accounts/account_store.js';
@@ -282,6 +283,22 @@ const GHOST_TOOLS = [
                 }
             },
             required: ['type', 'caption']
+        }
+    },
+    {
+        name: 'instagram_growth_advice',
+        description: 'Generate evidence-based content growth experiments for a MOCK demo account only. No real Instagram connection and no publishing.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                accountId: {
+                    type: 'string',
+                    enum: ['demo-account-1'],
+                    description: 'Mock account ID'
+                }
+            },
+            required: ['accountId'],
+            additionalProperties: false
         }
     },
     {
@@ -747,6 +764,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                                 message: 'Draft saved locally. Nothing was published.',
                                 draft
                             }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_growth_advice': {
+                if (args.accountId !== 'demo-account-1') {
+                    throw new Error('Only demo-account-1 is supported.');
+                }
+                const analytics = new InstagramAnalyticsService(new MockInstagramProvider());
+                const analyzed = await analytics.analyzeAccount(args.accountId);
+                if (!analyzed.ok) {
+                    return {
+                        content: [{
+                                type: 'text',
+                                text: JSON.stringify(analyzed, null, 2)
+                            }],
+                        isError: true
+                    };
+                }
+                const advisor = new InstagramGrowthAdvisor();
+                const advice = advisor.generate(analyzed.data);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify(advice, null, 2)
                         }]
                 };
             }

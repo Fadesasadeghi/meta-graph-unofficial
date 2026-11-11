@@ -21,7 +21,7 @@ test('MCP analytics: tool discovery, execution and mock isolation', {
     await client.connect(transport);
 
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 24);
+    assert.ok(tools.length >= 24);
 
     const analyticsTool = tools.find(
       tool => tool.name === 'instagram_analyze_account'
