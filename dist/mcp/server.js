@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+import { CommentAccountBindingStore as DirectBindings } from '../comments/comment_account_binding_store.js';
+import { MockDirectInboxProvider as DirectInbox } from '../providers/mock_direct_inbox_provider.js';
+import { DirectReplySettingsStore as DirectSettings } from '../direct/direct_reply_settings_store.js';
+import { VerifiedDirectReplyService as DirectVerifiedService } from '../direct/verified_direct_reply_service.js';
+import { MockAutoDirectExecutor as DirectExecutor } from '../direct/mock_auto_direct_executor.js';
 import { MockInstagramProvider as AutoCommentDataProvider } from '../providers/mock_instagram_provider.js';
 import { CommentAccountBindingStore as AutoCommentBindings } from '../comments/comment_account_binding_store.js';
 import { VerifiedCommentLookup as AutoCommentLookup } from '../comments/verified_comment_lookup.js';
@@ -59,6 +64,46 @@ const server = new Server({
 });
 // 1. Tool Definitions
 const GHOST_TOOLS = [
+    {
+        name: 'instagram_list_mock_direct_conversations',
+        description: 'List authorized MOCK direct conversations. Read-only; never contacts Instagram.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                accountId: { type: 'string' }
+            },
+            required: ['accountId'],
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'instagram_preview_mock_direct_reply',
+        description: 'Preview a verified MOCK direct message reply. Does not send messages.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                accountId: { type: 'string' },
+                conversationId: { type: 'string' },
+                messageId: { type: 'string' }
+            },
+            required: ['accountId', 'conversationId', 'messageId'],
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'instagram_execute_mock_auto_direct_reply',
+        description: 'Execute an approved automatic direct reply in MOCK mode only. Never contacts Instagram.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                accountId: { type: 'string' },
+                conversationId: { type: 'string' },
+                messageId: { type: 'string' }
+            },
+            required: ['accountId', 'conversationId', 'messageId'],
+            additionalProperties: false
+        }
+    },
     {
         name: 'instagram_execute_mock_auto_comment_reply',
         description: 'Execute a previously authorized comment reply in MOCK simulation only. Never contacts Instagram.',
@@ -717,6 +762,93 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args = {} } = request.params;
     try {
         switch (name) {
+            case 'instagram_list_mock_direct_conversations': {
+                const ownerId = process.env.INSTAGRAM_LOCAL_OWNER_ID;
+                if (!ownerId?.trim()) {
+                    throw new Error('INSTAGRAM_LOCAL_OWNER_ID is required.');
+                }
+                if (typeof args.accountId !== 'string' ||
+                    !args.accountId.trim()) {
+                    throw new Error('Valid accountId required.');
+                }
+                const binding = await new DirectBindings(new AccountStore()).get(ownerId, args.accountId);
+                if (!binding || binding.providerSource !== 'mock') {
+                    throw new Error('Verified MOCK binding required.');
+                }
+                const result = await new DirectInbox()
+                    .listConversationIds(binding.providerAccountId);
+                if (!result.ok || result.source !== 'mock') {
+                    throw new Error('MOCK inbox could not be verified.');
+                }
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                accountId: args.accountId,
+                                providerAccountId: binding.providerAccountId,
+                                conversationIds: result.data,
+                                source: 'mock',
+                                simulated: true
+                            }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_preview_mock_direct_reply': {
+                const ownerId = process.env.INSTAGRAM_LOCAL_OWNER_ID;
+                if (!ownerId?.trim()) {
+                    throw new Error('INSTAGRAM_LOCAL_OWNER_ID is required.');
+                }
+                if (typeof args.accountId !== 'string' ||
+                    !args.accountId.trim() ||
+                    typeof args.conversationId !== 'string' ||
+                    !args.conversationId.trim() ||
+                    typeof args.messageId !== 'string' ||
+                    !args.messageId.trim()) {
+                    throw new Error('Valid direct message identifiers required.');
+                }
+                const accountStore = new AccountStore();
+                const verified = new DirectVerifiedService(new DirectBindings(accountStore), new DirectInbox(), new DirectSettings(accountStore));
+                const preview = await verified.preview(ownerId, args.accountId, args.conversationId, args.messageId);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                ...preview,
+                                simulated: true,
+                                executed: false,
+                                message: 'MOCK preview only. No direct message sent.'
+                            }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_execute_mock_auto_direct_reply': {
+                const ownerId = process.env.INSTAGRAM_LOCAL_OWNER_ID;
+                if (!ownerId?.trim()) {
+                    throw new Error('INSTAGRAM_LOCAL_OWNER_ID is required.');
+                }
+                if (typeof args.accountId !== 'string' ||
+                    !args.accountId.trim() ||
+                    typeof args.conversationId !== 'string' ||
+                    !args.conversationId.trim() ||
+                    typeof args.messageId !== 'string' ||
+                    !args.messageId.trim()) {
+                    throw new Error('Valid direct message identifiers required.');
+                }
+                const accountStore = new AccountStore();
+                const verified = new DirectVerifiedService(new DirectBindings(accountStore), new DirectInbox(), new DirectSettings(accountStore));
+                const executor = new DirectExecutor(verified);
+                const receipt = await executor.execute(ownerId, args.accountId, args.conversationId, args.messageId);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                ...receipt,
+                                simulated: true,
+                                message: 'MOCK execution only. No real Instagram DM sent.'
+                            }, null, 2)
+                        }]
+                };
+            }
             case 'instagram_execute_mock_auto_comment_reply': {
                 if (typeof args.accountId !== 'string' ||
                     !args.accountId.trim() ||
