@@ -15,12 +15,16 @@ import { GhostService } from './ghost_service.js';
 import { DraftStore } from '../content/draft_store.js';
 import { TimezoneStore } from '../settings/timezone_store.js';
 import { AccountStore } from '../accounts/account_store.js';
+import { AccountDraftStore } from '../accounts/account_draft_store.js';
 import { getLocalOwnerId } from '../accounts/local_owner.js';
+import { OwnerTimezoneStore } from '../settings/owner_timezone_store.js';
 // Initialize the Ghost Service (wraps TwinGraph & Mobile/Web Twins)
 const ghost = new GhostService();
 const drafts = new DraftStore();
 const timezones = new TimezoneStore();
 const accounts = new AccountStore();
+const accountDrafts = new AccountDraftStore(accounts);
+const ownerTimezones = new OwnerTimezoneStore();
 const SERVER_NAME = 'meta-graph-ghost-mcp';
 const SERVER_VERSION = '1.0.0';
 const server = new Server({
@@ -33,6 +37,88 @@ const server = new Server({
 });
 // 1. Tool Definitions
 const GHOST_TOOLS = [
+    {
+        name: 'instagram_get_owner_timezone',
+        description: 'Get the confirmed timezone for the configured local owner. No Instagram connection.',
+        inputSchema: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'instagram_set_owner_timezone',
+        description: 'Save a timezone explicitly confirmed by the local user. Do not change without user confirmation.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                timezone: { type: 'string' }
+            },
+            required: ['timezone'],
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'instagram_schedule_account_draft',
+        description: 'Schedule a draft locally for the specified account using the confirmed owner timezone. Does not publish.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                accountId: { type: 'string' },
+                id: { type: 'string' },
+                localDateTime: { type: 'string' }
+            },
+            required: ['accountId', 'id', 'localDateTime'],
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'instagram_cancel_account_schedule',
+        description: 'Cancel local scheduling of a draft belonging to the specified account. Does not publish.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                accountId: { type: 'string' },
+                id: { type: 'string' }
+            },
+            required: ['accountId', 'id'],
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'instagram_create_account_draft',
+        description: 'Create a local draft for a specified registered Instagram account. Does not publish or connect to Instagram.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                accountId: { type: 'string' },
+                type: {
+                    type: 'string',
+                    enum: ['post', 'story', 'reel']
+                },
+                caption: { type: 'string' },
+                mediaUrl: { type: 'string' },
+                hashtags: {
+                    type: 'array',
+                    items: { type: 'string' }
+                }
+            },
+            required: ['accountId', 'type', 'caption'],
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'instagram_list_account_drafts',
+        description: 'List local drafts belonging to one registered Instagram account. Does not publish anything.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                accountId: { type: 'string' }
+            },
+            required: ['accountId'],
+            additionalProperties: false
+        }
+    },
     {
         name: 'instagram_add_local_account',
         description: 'Register an Instagram account label locally for the configured owner. Does not connect to Instagram, verify ownership or grant publishing access. Ask for explicit user confirmation before registering.',
@@ -317,6 +403,129 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args = {} } = request.params;
     try {
         switch (name) {
+            case 'instagram_get_owner_timezone': {
+                const ownerId = getLocalOwnerId();
+                const settings = await ownerTimezones.forOwner(ownerId).get();
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                settings,
+                                suggestedTimezone: TimezoneStore.detect(),
+                                requiresConfirmation: settings?.confirmed !== true
+                            }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_set_owner_timezone': {
+                const ownerId = getLocalOwnerId();
+                if (typeof args.timezone !== 'string') {
+                    throw new Error('A confirmed timezone is required.');
+                }
+                const settings = await ownerTimezones
+                    .forOwner(ownerId)
+                    .set(args.timezone);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                settings,
+                                message: 'Owner timezone saved locally.'
+                            }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_schedule_account_draft': {
+                const ownerId = getLocalOwnerId();
+                if (typeof args.accountId !== 'string' ||
+                    typeof args.id !== 'string' ||
+                    typeof args.localDateTime !== 'string') {
+                    throw new Error('accountId, id and localDateTime are required.');
+                }
+                const store = await accountDrafts.forAccount(ownerId, args.accountId);
+                const settings = await ownerTimezones
+                    .forOwner(ownerId)
+                    .get();
+                if (!settings?.confirmed) {
+                    throw new Error('Owner timezone is not confirmed. Ask the user to confirm a timezone.');
+                }
+                const draft = await store.schedule(args.id, args.localDateTime, settings.timezone);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                accountId: args.accountId,
+                                draft,
+                                message: 'Draft scheduled locally. Automatic publishing is not enabled.'
+                            }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_cancel_account_schedule': {
+                const ownerId = getLocalOwnerId();
+                if (typeof args.accountId !== 'string' ||
+                    typeof args.id !== 'string') {
+                    throw new Error('accountId and id are required.');
+                }
+                const store = await accountDrafts.forAccount(ownerId, args.accountId);
+                const draft = await store.cancelSchedule(args.id);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                accountId: args.accountId,
+                                draft,
+                                message: 'Account draft schedule cancelled locally.'
+                            }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_create_account_draft': {
+                const ownerId = getLocalOwnerId();
+                if (typeof args.accountId !== 'string') {
+                    throw new Error('accountId is required.');
+                }
+                const store = await accountDrafts.forAccount(ownerId, args.accountId);
+                const draft = await store.create({
+                    type: args.type,
+                    caption: args.caption,
+                    ...(args.mediaUrl !== undefined
+                        ? { mediaUrl: args.mediaUrl }
+                        : {}),
+                    ...(args.hashtags !== undefined
+                        ? { hashtags: args.hashtags }
+                        : {})
+                });
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                accountId: args.accountId,
+                                draft,
+                                message: 'Draft saved locally for this account. Nothing was published.'
+                            }, null, 2)
+                        }]
+                };
+            }
+            case 'instagram_list_account_drafts': {
+                const ownerId = getLocalOwnerId();
+                if (typeof args.accountId !== 'string') {
+                    throw new Error('accountId is required.');
+                }
+                const store = await accountDrafts.forAccount(ownerId, args.accountId);
+                const savedDrafts = await store.list();
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                accountId: args.accountId,
+                                total: savedDrafts.length,
+                                drafts: savedDrafts,
+                                message: 'Account-specific local drafts only.'
+                            }, null, 2)
+                        }]
+                };
+            }
             case 'instagram_add_local_account': {
                 const ownerId = getLocalOwnerId();
                 if (typeof args.username !== 'string' ||
