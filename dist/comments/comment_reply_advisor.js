@@ -34,6 +34,19 @@ export class CommentReplyAdvisor {
             confidence = 'medium';
         }
         else if (matches([
+            /عالی|قشنگ|زیبا|ممنون|مرسی|دوست داشتم/,
+            /beautiful|amazing|love it|thank you|great content|nice post|awesome|well done/
+        ]) &&
+            matches([
+                /ولی|اما|با این حال/,
+                /\b(?:but|however|although)\b/
+            ])) {
+            category = 'general';
+            suggestedReply = 'ممنون که نظرت رو گفتی. لطفاً جزئیات بیشتری بده تا موضوع رو بررسی کنیم.';
+            reason = 'Mixed feedback requires human review.';
+            confidence = 'low';
+        }
+        else if (matches([
             /قیمت|چنده|چقدره|هزینه|تومن|تومان/,
             /price|cost|how much/
         ])) {
@@ -55,7 +68,7 @@ export class CommentReplyAdvisor {
         }
         else if (matches([
             /عالی|قشنگ|زیبا|ممنون|مرسی|دوست داشتم/,
-            /beautiful|amazing|love it|thank you/
+            /beautiful|amazing|love it|thank you|great content|nice post|awesome|well done/
         ])) {
             category = 'compliment';
             suggestedReply =

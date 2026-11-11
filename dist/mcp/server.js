@@ -1,4 +1,11 @@
 #!/usr/bin/env node
+import { MockInstagramProvider as AutoCommentDataProvider } from '../providers/mock_instagram_provider.js';
+import { CommentAccountBindingStore as AutoCommentBindings } from '../comments/comment_account_binding_store.js';
+import { VerifiedCommentLookup as AutoCommentLookup } from '../comments/verified_comment_lookup.js';
+import { CommentReplySettingsStore as AutoCommentSettings } from '../comments/comment_reply_settings_store.js';
+import { CommentReplyService as AutoCommentReplyService } from '../comments/comment_reply_service.js';
+import { VerifiedCommentReplyService as AutoCommentVerifiedService } from '../comments/verified_comment_reply_service.js';
+import { MockAutoCommentExecutor as AutoCommentExecutor } from '../comments/mock_auto_comment_executor.js';
 import { AccountStore as CommentPreviewAccountStore } from '../accounts/account_store.js';
 import { CommentReplySettingsStore as CommentPreviewSettingsStore } from '../comments/comment_reply_settings_store.js';
 import { CommentReplyService as CommentPreviewService } from '../comments/comment_reply_service.js';
@@ -52,6 +59,20 @@ const server = new Server({
 });
 // 1. Tool Definitions
 const GHOST_TOOLS = [
+    {
+        name: 'instagram_execute_mock_auto_comment_reply',
+        description: 'Execute a previously authorized comment reply in MOCK simulation only. Never contacts Instagram.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                accountId: { type: 'string' },
+                mediaId: { type: 'string' },
+                commentId: { type: 'string' }
+            },
+            required: ['accountId', 'mediaId', 'commentId'],
+            additionalProperties: false
+        }
+    },
     {
         name: 'instagram_preview_comment_reply',
         description: 'Preview a rule-based Instagram comment reply using per-account settings. Never sends a reply.',
@@ -696,6 +717,35 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args = {} } = request.params;
     try {
         switch (name) {
+            case 'instagram_execute_mock_auto_comment_reply': {
+                if (typeof args.accountId !== 'string' ||
+                    !args.accountId.trim() ||
+                    typeof args.mediaId !== 'string' ||
+                    !args.mediaId.trim() ||
+                    typeof args.commentId !== 'string' ||
+                    !args.commentId.trim()) {
+                    throw new Error('Valid account, media and comment IDs required.');
+                }
+                const ownerId = process.env.INSTAGRAM_LOCAL_OWNER_ID;
+                if (!ownerId || !ownerId.trim()) {
+                    throw new Error('INSTAGRAM_LOCAL_OWNER_ID is required.');
+                }
+                // Hard-coded MOCK implementations: no live provider or sender.
+                const accounts = new CommentPreviewAccountStore();
+                const verified = new AutoCommentVerifiedService(new AutoCommentBindings(accounts), new AutoCommentLookup(new AutoCommentDataProvider()), new AutoCommentReplyService(new AutoCommentSettings(accounts)));
+                const executor = new AutoCommentExecutor(verified);
+                const receipt = await executor.execute(ownerId, args.accountId, args.mediaId, args.commentId);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                ...receipt,
+                                simulated: true,
+                                message: 'MOCK execution only. No real Instagram reply was sent.'
+                            }, null, 2)
+                        }]
+                };
+            }
             case 'instagram_preview_comment_reply': {
                 if (typeof args.accountId !== 'string' ||
                     !args.accountId.trim() ||
