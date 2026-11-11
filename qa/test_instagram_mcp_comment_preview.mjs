@@ -118,7 +118,7 @@ test('MCP comment preview respects account safety settings', {
     const initial = await preview(
       account.id,
       'comment-1',
-      'قیمت این محصول چقدره؟'
+      'How much does this item cost?'
     );
 
     assert.notEqual(initial.result.isError, true);
@@ -134,9 +134,9 @@ test('MCP comment preview respects account safety settings', {
         autoReplyEnabled: true,
         policy: { ...DEFAULT_REPLY_POLICY },
         approvedTemplates: {
-          compliment: 'ممنون از محبتت 💛',
-          pricing: 'لطفاً مدل محصول را مشخص کن.',
-          product_question: 'لطفاً نام محصول را بفرست.'
+          compliment: 'Thank you for your kindness!',
+          pricing: 'Please specify the product model.',
+          product_question: 'Please send the product name.'
         }
       }
     );
@@ -144,7 +144,7 @@ test('MCP comment preview respects account safety settings', {
     const pricing = await preview(
       account.id,
       'comment-2',
-      'قیمت این محصول چقدره؟'
+      'How much does this item cost?'
     );
 
     assert.notEqual(pricing.result.isError, true);
@@ -152,7 +152,7 @@ test('MCP comment preview respects account safety settings', {
     assert.equal(pricing.data.mode, 'auto');
     assert.equal(
       pricing.data.suggestedReply,
-      'لطفاً مدل محصول را مشخص کن.'
+      'Please specify the product model.'
     );
     assert.equal(pricing.data.executed, false);
 
@@ -161,7 +161,7 @@ test('MCP comment preview respects account safety settings', {
     const complaint = await preview(
       account.id,
       'comment-3',
-      'محصول خراب بود و ناراضی هستم'
+      'The item arrived broken and I am disappointed.'
     );
 
     assert.equal(complaint.data.mode, 'manual');
@@ -173,7 +173,7 @@ test('MCP comment preview respects account safety settings', {
     const unauthorized = await preview(
       otherAccount.id,
       'comment-4',
-      'خیلی عالی بود!'
+      'Absolutely amazing!'
     );
 
     assert.equal(unauthorized.result.isError, true);
@@ -187,7 +187,7 @@ test('MCP comment preview respects account safety settings', {
         autoReplyEnabled: false,
         policy: { ...DEFAULT_REPLY_POLICY },
         approvedTemplates: {
-          pricing: 'لطفاً مدل محصول را مشخص کن.'
+          pricing: 'Please specify the product model.'
         }
       }
     );
@@ -195,7 +195,7 @@ test('MCP comment preview respects account safety settings', {
     const disabled = await preview(
       account.id,
       'comment-5',
-      'قیمت این محصول چقدره؟'
+      'How much does this item cost?'
     );
 
     assert.equal(disabled.data.mode, 'manual');

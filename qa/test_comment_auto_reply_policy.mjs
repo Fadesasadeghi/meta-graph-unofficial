@@ -14,9 +14,9 @@ const advisor = new CommentReplyAdvisor();
 const policy = new CommentAutoReplyPolicy();
 
 const templates = {
-  compliment: 'خیلی ممنون از محبتت 💛',
-  pricing: 'لطفاً مدل محصول رو مشخص کن تا قیمت بررسی بشه.',
-  product_question: 'لطفاً محصول موردنظرت رو مشخص کن.'
+  compliment: 'Thank you so much for your support!',
+  pricing: 'Please share the product model so we can check the price.',
+  product_question: 'Please specify which product you mean.'
 };
 
 function decide(text, enabled = false, approved = templates) {
@@ -34,34 +34,34 @@ function decide(text, enabled = false, approved = templates) {
 }
 
 test('automatic replies are disabled by default', () => {
-  const result = decide('خیلی عالی بود!');
+  const result = decide('Absolutely amazing!');
 
   assert.equal(result.mode, 'manual');
 });
 
 test('pre-approved compliments can use auto mode', () => {
-  const result = decide('چقدر زیبا بود!', true);
+  const result = decide('So beautiful!', true);
 
   assert.equal(result.mode, 'auto');
   assert.equal(result.reply, templates.compliment);
 });
 
 test('pricing uses an approved generic template', () => {
-  const result = decide('قیمت این محصول چقدره؟', true);
+  const result = decide('How much does this item cost?', true);
 
   assert.equal(result.mode, 'auto');
   assert.equal(result.reply, templates.pricing);
 });
 
 test('product questions use approved templates', () => {
-  const result = decide('این محصول چه سایزی موجوده؟', true);
+  const result = decide('What size is available for this product?', true);
 
   assert.equal(result.mode, 'auto');
   assert.equal(result.reply, templates.product_question);
 });
 
 test('missing approved template requires manual review', () => {
-  const result = decide('قیمت چنده؟', true, {
+  const result = decide('How much does it cost?', true, {
     compliment: templates.compliment
   });
 
@@ -70,7 +70,7 @@ test('missing approved template requires manual review', () => {
 
 test('complaints always require manual approval', () => {
   const result = decide(
-    'محصول خراب بود و ناراضی هستم',
+    'The item arrived broken and I am disappointed.',
     true
   );
 
@@ -79,7 +79,7 @@ test('complaints always require manual approval', () => {
 
 test('spam is skipped even when auto mode is enabled', () => {
   const result = decide(
-    'فالوور رایگان https://example.com',
+    'Free followers https://example.com',
     true
   );
 
@@ -88,7 +88,7 @@ test('spam is skipped even when auto mode is enabled', () => {
 });
 
 test('ambiguous comments require manual approval', () => {
-  const result = decide('سلام یه سؤال داشتم', true);
+  const result = decide('Hello, I have a question.', true);
 
   assert.equal(result.mode, 'manual');
 });
@@ -96,7 +96,7 @@ test('ambiguous comments require manual approval', () => {
 test('low-confidence suggestions do not auto-reply', () => {
   const suggestion = advisor.suggest({
     commentId: 'comment-1',
-    text: 'خیلی عالی بود!'
+    text: 'Absolutely amazing!'
   });
 
   suggestion.confidence = 'low';

@@ -14,9 +14,9 @@ const advisor = new CommentReplyAdvisor();
 const policy = new CommentAutoReplyPolicy();
 
 const templates = {
-  compliment: 'ممنون از محبتت!',
-  pricing: 'لطفاً مدل محصول را مشخص کن.',
-  product_question: 'لطفاً نام محصول را مشخص کن.'
+  compliment: 'Thank you for your kindness!',
+  pricing: 'Please specify the product model.',
+  product_question: 'Please specify the product name.'
 };
 
 function evaluate(text) {
@@ -47,7 +47,7 @@ test('English mixed feedback requires manual review', () => {
 
 test('Persian mixed feedback requires manual review', () => {
   const result = evaluate(
-    'خیلی عالیه ولی سفارش هنوز به دستم نرسیده'
+    'Amazing product but my order has not arrived.'
   );
 
   assert.equal(result.decision.mode, 'manual');
@@ -55,7 +55,7 @@ test('Persian mixed feedback requires manual review', () => {
 
 test('mixed praise and pricing requires manual review', () => {
   const result = evaluate(
-    'عالیه ولی قیمت چرا انقدر بالاست؟'
+    'Amazing product but why is the price so high?'
   );
 
   assert.equal(result.decision.mode, 'manual');
@@ -68,7 +68,7 @@ test('clear compliments remain eligible for auto reply', () => {
 });
 
 test('clear pricing questions remain eligible for auto reply', () => {
-  const result = evaluate('قیمت این محصول چقدره؟');
+  const result = evaluate('How much does this item cost?');
 
   assert.equal(result.decision.mode, 'auto');
 });

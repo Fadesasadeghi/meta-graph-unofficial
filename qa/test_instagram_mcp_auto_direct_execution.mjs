@@ -171,8 +171,8 @@ test('MCP direct workflow is isolated, authorized and idempotent', async () => {
       autoReplyEnabled: true,
       policy: { ...DEFAULT_DIRECT_REPLY_POLICY },
       approvedTemplates: {
-        pricing: 'لطفاً مدل محصول را ارسال کنید.',
-        compliment: 'ممنون از محبت شما!'
+        pricing: 'Please send us the product model.',
+        compliment: 'Thank you for your support!'
       }
     });
 
@@ -187,11 +187,11 @@ test('MCP direct workflow is isolated, authorized and idempotent', async () => {
     assert.equal(preview.mode, 'auto');
     assert.equal(
       preview.reply,
-      'لطفاً مدل محصول را ارسال کنید.'
+      'Please send us the product model.'
     );
     assert.equal(
       preview.messageText,
-      'سلام، قیمت این محصول چقدره؟'
+      'Hi, how much is this item?'
     );
     assert.equal(preview.executed, false);
 

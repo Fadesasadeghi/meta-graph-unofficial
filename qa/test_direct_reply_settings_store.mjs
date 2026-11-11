@@ -36,8 +36,8 @@ const enabledSettings = {
   autoReplyEnabled: true,
   policy: { ...DEFAULT_DIRECT_REPLY_POLICY },
   approvedTemplates: {
-    compliment: 'ممنون از محبت شما!',
-    pricing: 'لطفاً مدل محصول را بفرستید.'
+    compliment: 'Thank you for your support!',
+    pricing: 'Please send the product model.'
   }
 };
 
@@ -64,7 +64,7 @@ test('saves approved templates and policies', async () => {
     assert.equal(loaded.autoReplyEnabled, true);
     assert.equal(
       loaded.approvedTemplates.pricing,
-      'لطفاً مدل محصول را بفرستید.'
+      'Please send the product model.'
     );
   } finally {
     await rm(ctx.root, { recursive: true, force: true });

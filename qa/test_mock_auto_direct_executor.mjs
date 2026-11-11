@@ -72,8 +72,8 @@ async function setup() {
       autoReplyEnabled: true,
       policy: { ...DEFAULT_DIRECT_REPLY_POLICY },
       approvedTemplates: {
-        pricing: 'لطفاً مدل محصول را ارسال کنید.',
-        compliment: 'ممنون از محبت شما!'
+        pricing: 'Please send us the product model.',
+        compliment: 'Thank you for your support!'
       }
     });
 
@@ -334,7 +334,7 @@ test('disabling auto replies prevents new executions', async () => {
       autoReplyEnabled: false,
       policy: { ...DEFAULT_DIRECT_REPLY_POLICY },
       approvedTemplates: {
-        pricing: 'لطفاً مدل محصول را ارسال کنید.'
+        pricing: 'Please send us the product model.'
       }
     });
 

@@ -8,88 +8,85 @@ export class DirectMessageAdvisor {
             !input.text.trim()) {
             throw new Error('Valid message identifiers and text required.');
         }
-        const text = input.text.toLowerCase().trim();
+        const text = input.text.trim().toLowerCase();
         const matches = (patterns) => patterns.some(pattern => pattern.test(text));
         let category = 'general';
         let handling = 'manual';
         let confidence = 'low';
         let suggestedReply = null;
-        let reason = 'Unrecognized messages require human review.';
-        const isSpam = matches([
-            /فالوور تضمینی|خرید فالوور|تبلیغات تضمینی|افزایش فالوور/,
-            /buy followers|guaranteed followers|free followers/
-        ]);
-        const isOrderSupport = matches([
-            /سفارش|بسته|مرسوله|کد رهگیری|تحویل|نرسیده|ارسال نشده/,
-            /my order|tracking number|not delivered|never received|where is my package/
-        ]);
-        const isComplaint = matches([
-            /خراب|شکسته|معیوب|ناراضی|شکایت|افتضاح|بی کیفیت|بی‌کیفیت/,
-            /broken|damaged|defective|refund|complaint|disappointed|poor quality/
-        ]);
-        const isPricing = matches([
-            /قیمت|چنده|چقدره|هزینه|تومان|تومن/,
-            /\bprice\b|how much|cost/
-        ]);
-        const isProductQuestion = matches([
-            /موجود|سایز|رنگ بندی|رنگ‌بندی|جنس|مشخصات|اندازه/,
-            /available|in stock|size|material|colors/
-        ]);
-        const isCompliment = matches([
-            /عالی|زیبا|قشنگ|ممنون|مرسی|دوست داشتم/,
-            /great content|nice|beautiful|amazing|thank you|love it|awesome/
-        ]);
-        const isMixed = matches([
-            /ولی|اما|با این حال/,
-            /\bbut\b|\bhowever\b|\balthough\b/
-        ]);
-        // Prioritize customer support and complaints over praise.
-        if (isSpam) {
+        let reason = 'General inquiry requires human review.';
+        if (matches([
+            /https?:\/\/|www\./,
+            /free followers|guaranteed promotion|buy now|limited offer/
+        ])) {
             category = 'spam';
             handling = 'skip';
             confidence = 'medium';
-            reason = 'Likely promotional spam.';
+            suggestedReply = null;
+            reason = 'Potential spam or unsolicited promotion.';
         }
-        else if (isOrderSupport) {
+        else if (matches([
+            /order|shipment|shipping|delivery|not arrived|tracking/
+        ])) {
             category = 'order_support';
             handling = 'manual';
             confidence = 'medium';
-            reason = 'Order support requires human verification.';
+            suggestedReply =
+                null;
+            reason = 'Order support requires human review.';
         }
-        else if (isComplaint) {
+        else if (matches([
+            /complaint|broken|wrong|terrible|refund|disappointed|problem/
+        ])) {
             category = 'complaint';
             handling = 'manual';
             confidence = 'medium';
-            reason = 'Complaints require human review.';
+            suggestedReply =
+                null;
+            reason = 'Complaint detected; requires human review.';
         }
-        else if (isMixed && (isCompliment || isPricing || isProductQuestion)) {
+        else if (matches([
+            /beautiful|amazing|love it|thank you|awesome|great/
+        ]) &&
+            matches([
+                /\b(?:but|however|although)\b/
+            ])) {
             category = 'general';
             handling = 'manual';
             confidence = 'low';
-            reason = 'Mixed or ambiguous message requires human review.';
+            suggestedReply =
+                null;
+            reason = 'Mixed feedback should not be auto-replied.';
         }
-        else if (isPricing) {
+        else if (matches([
+            /price|cost|how much|pricing/
+        ])) {
             category = 'pricing';
             handling = 'template_candidate';
             confidence = 'medium';
             suggestedReply =
-                'سلام! لطفاً نام یا مدل محصول رو بفرستید تا قیمت دقیق بررسی بشه.';
-            reason = 'Pricing inquiry; no price is invented.';
+                'Thanks for your message. Please tell us which item you mean so we can check the exact price.';
+            reason = 'Pricing inquiry can use a verified template.';
         }
-        else if (isProductQuestion) {
+        else if (matches([
+            /\b(?:size|color|available|quality|material|in stock|product details|which product)\b/
+        ])) {
             category = 'product_question';
             handling = 'template_candidate';
             confidence = 'medium';
             suggestedReply =
-                'سلام! لطفاً نام محصول رو بفرستید تا اطلاعات دقیق‌تری ارائه بشه.';
-            reason = 'Product inquiry; no product facts are invented.';
+                'Thanks for your message. Please tell us which product you mean so we can check the details for you.';
+            reason = 'Product inquiry can use a verified template.';
         }
-        else if (isCompliment) {
+        else if (matches([
+            /beautiful|amazing|love it|thank you|awesome|great/
+        ])) {
             category = 'compliment';
             handling = 'template_candidate';
             confidence = 'medium';
-            suggestedReply = 'خیلی ممنون از محبت و همراهی شما! 💛';
-            reason = 'Positive feedback.';
+            suggestedReply =
+                'Thank you so much. We really appreciate your kind message.';
+            reason = 'Positive message can use a verified template.';
         }
         return {
             messageId: input.messageId,

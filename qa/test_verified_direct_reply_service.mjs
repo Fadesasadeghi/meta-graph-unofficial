@@ -83,8 +83,8 @@ test('verified direct reply decisions enforce account and message identity', asy
       autoReplyEnabled: true,
       policy: { ...DEFAULT_DIRECT_REPLY_POLICY },
       approvedTemplates: {
-        pricing: 'لطفاً مدل محصول را بفرستید.',
-        compliment: 'ممنون از محبت شما!'
+        pricing: 'Please send the product model.',
+        compliment: 'Thank you for your support!'
       }
     });
 
@@ -93,11 +93,11 @@ test('verified direct reply decisions enforce account and message identity', asy
     assert.equal(pricing.mode, 'auto');
     assert.equal(
       pricing.reply,
-      'لطفاً مدل محصول را بفرستید.'
+      'Please send the product model.'
     );
     assert.equal(
       pricing.messageText,
-      'سلام، قیمت این محصول چقدره؟'
+      'Hi, how much is this item?'
     );
     assert.equal(pricing.executed, false);
 
@@ -157,7 +157,7 @@ test('verified direct reply decisions enforce account and message identity', asy
       autoReplyEnabled: false,
       policy: { ...DEFAULT_DIRECT_REPLY_POLICY },
       approvedTemplates: {
-        pricing: 'لطفاً مدل محصول را بفرستید.'
+        pricing: 'Please send the product model.'
       }
     });
 

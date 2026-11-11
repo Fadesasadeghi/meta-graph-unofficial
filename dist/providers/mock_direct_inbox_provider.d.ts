@@ -4,7 +4,6 @@ export declare class MockDirectInboxProvider {
     readonly source: 'mock';
     private readonly accountId;
     private readonly conversations;
-    private validId;
     private success;
     private failure;
     listConversationIds(accountId: string): Promise<ProviderResult<string[]>>;

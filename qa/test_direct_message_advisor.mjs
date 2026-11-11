@@ -44,7 +44,7 @@ test('classifies pricing inquiries without inventing prices', async () => {
   assert.equal(result.category, 'pricing');
   assert.equal(result.handling, 'template_candidate');
   assert.equal(result.executed, false);
-  assert.doesNotMatch(result.suggestedReply, /\d+\s*تومان/);
+  assert.doesNotMatch(result.suggestedReply, /(?:\$|USD)\s*\d+|\d+\s*(?:USD|dollars)/i);
 });
 
 test('classifies compliments', async () => {
@@ -70,7 +70,7 @@ test('skips promotional spam', async () => {
 });
 
 test('routes complaints to a human', () => {
-  const result = classify('محصولی که فرستادید خراب بود.');
+  const result = classify('The item you sent was broken.');
 
   assert.equal(result.category, 'complaint');
   assert.equal(result.handling, 'manual');
@@ -85,7 +85,7 @@ test('routes mixed feedback to a human', () => {
 });
 
 test('routes unknown messages to a human', () => {
-  const result = classify('سلام، یه سوال دارم.');
+  const result = classify('Hello, I have a question.');
 
   assert.equal(result.category, 'general');
   assert.equal(result.handling, 'manual');

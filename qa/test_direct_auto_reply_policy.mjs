@@ -14,9 +14,9 @@ const advisor = new DirectMessageAdvisor();
 const policy = new DirectAutoReplyPolicy();
 
 const templates = {
-  compliment: 'ممنون از محبت شما! 💛',
-  pricing: 'لطفاً مدل محصول رو بفرستید.',
-  product_question: 'لطفاً نام محصول رو بفرستید.'
+  compliment: 'Thank you so much for your support!',
+  pricing: 'Please send the product model.',
+  product_question: 'Please send the product name.'
 };
 
 function decide(
@@ -41,7 +41,7 @@ function decide(
 
 test('auto replies are disabled by default', () => {
   const result = decide(
-    'محصولاتتون خیلی عالیه!',
+    'Your products are amazing!',
     false
   );
 
@@ -50,7 +50,7 @@ test('auto replies are disabled by default', () => {
 });
 
 test('approved compliments may use auto mode', () => {
-  const result = decide('محصولاتتون خیلی عالیه!');
+  const result = decide('Your products are amazing!');
 
   assert.equal(result.mode, 'auto');
   assert.equal(result.reply, templates.compliment);
@@ -58,14 +58,14 @@ test('approved compliments may use auto mode', () => {
 });
 
 test('pricing uses approved template without inventing prices', () => {
-  const result = decide('قیمت این محصول چقدره؟');
+  const result = decide('How much does this item cost?');
 
   assert.equal(result.mode, 'auto');
   assert.equal(result.reply, templates.pricing);
 });
 
 test('product questions use approved templates', () => {
-  const result = decide('این محصول موجوده؟');
+  const result = decide('Is this product available?');
 
   assert.equal(result.mode, 'auto');
   assert.equal(result.reply, templates.product_question);
@@ -73,7 +73,7 @@ test('product questions use approved templates', () => {
 
 test('missing template requires manual approval', () => {
   const result = decide(
-    'قیمت این محصول چقدره؟',
+    'How much does this item cost?',
     true,
     {}
   );
@@ -83,20 +83,20 @@ test('missing template requires manual approval', () => {
 });
 
 test('order support always requires human review', () => {
-  const result = decide('سفارشم هنوز نرسیده.');
+  const result = decide('My order has not arrived.');
 
   assert.equal(result.mode, 'manual');
   assert.equal(result.reply, null);
 });
 
 test('complaints always require human review', () => {
-  const result = decide('محصول خراب بود.');
+  const result = decide('The product arrived broken.');
 
   assert.equal(result.mode, 'manual');
 });
 
 test('spam is skipped', () => {
-  const result = decide('خرید فالوور تضمینی!');
+  const result = decide('Free followers and guaranteed promotion!');
 
   assert.equal(result.mode, 'skip');
   assert.equal(result.reply, null);
@@ -104,7 +104,7 @@ test('spam is skipped', () => {
 
 test('ambiguous messages are never automatic', () => {
   const result = decide(
-    'عالیه ولی سفارشم هنوز نرسیده.'
+    'Amazing, but my order has not arrived.'
   );
 
   assert.equal(result.mode, 'manual');
@@ -112,7 +112,7 @@ test('ambiguous messages are never automatic', () => {
 
 test('account policy can disable auto replies for a category', () => {
   const result = decide(
-    'قیمت این محصول چقدره؟',
+    'How much does this item cost?',
     true,
     templates,
     {
@@ -126,7 +126,7 @@ test('account policy can disable auto replies for a category', () => {
 
 test('unsafe policy overrides cannot automate complaints', () => {
   const result = decide(
-    'این محصول خراب بود.',
+    'This product arrived broken.',
     true,
     templates,
     {

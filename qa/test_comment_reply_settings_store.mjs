@@ -17,9 +17,9 @@ import {
 } from '../dist/comments/comment_auto_reply_policy.js';
 
 const templates = {
-  compliment: 'خیلی ممنون از محبتت 💛',
-  pricing: 'لطفاً مدل محصول رو مشخص کن تا قیمت بررسی بشه.',
-  product_question: 'لطفاً محصول موردنظرت رو مشخص کن.'
+  compliment: 'Thank you so much for your support!',
+  pricing: 'Please share the product model so we can check the price.',
+  product_question: 'Please specify which product you mean.'
 };
 
 async function setup() {

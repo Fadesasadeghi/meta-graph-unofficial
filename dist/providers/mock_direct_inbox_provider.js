@@ -7,7 +7,7 @@ export class MockDirectInboxProvider {
                 id: 'demo-message-pricing-1',
                 conversationId: 'demo-dm-pricing',
                 senderId: 'demo-customer-1',
-                text: 'سلام، قیمت این محصول چقدره؟',
+                text: 'Hi, how much is this item?',
                 createdAt: '2026-11-10T09:00:00.000Z'
             }
         ],
@@ -16,7 +16,7 @@ export class MockDirectInboxProvider {
                 id: 'demo-message-compliment-1',
                 conversationId: 'demo-dm-compliment',
                 senderId: 'demo-customer-2',
-                text: 'محصولاتتون خیلی عالیه، ممنون!',
+                text: 'Your products look amazing. Thanks!',
                 createdAt: '2026-11-10T09:15:00.000Z'
             }
         ],
@@ -25,7 +25,7 @@ export class MockDirectInboxProvider {
                 id: 'demo-message-order-1',
                 conversationId: 'demo-dm-order',
                 senderId: 'demo-customer-3',
-                text: 'سفارشم هنوز نرسیده، لطفاً پیگیری کنید.',
+                text: 'My order has still not arrived. Please follow up.',
                 createdAt: '2026-11-10T09:30:00.000Z'
             }
         ],
@@ -34,15 +34,11 @@ export class MockDirectInboxProvider {
                 id: 'demo-message-spam-1',
                 conversationId: 'demo-dm-spam',
                 senderId: 'demo-spammer-1',
-                text: 'تبلیغات تضمینی فالوور! همین حالا خرید کنید.',
+                text: 'Free followers and guaranteed promotion. Buy now.',
                 createdAt: '2026-11-10T09:45:00.000Z'
             }
         ]
     };
-    validId(value) {
-        return typeof value === 'string' &&
-            value.trim().length > 0;
-    }
     success(data) {
         return {
             ok: true,
@@ -63,7 +59,8 @@ export class MockDirectInboxProvider {
         };
     }
     async listConversationIds(accountId) {
-        if (!this.validId(accountId)) {
+        if (typeof accountId !== 'string' ||
+            !accountId.trim()) {
             return this.failure('INVALID_REQUEST', 'Valid accountId is required.');
         }
         if (accountId !== this.accountId) {
@@ -72,8 +69,10 @@ export class MockDirectInboxProvider {
         return this.success(Object.keys(this.conversations));
     }
     async listDirectMessages(accountId, conversationId) {
-        if (!this.validId(accountId) ||
-            !this.validId(conversationId)) {
+        if (typeof accountId !== 'string' ||
+            !accountId.trim() ||
+            typeof conversationId !== 'string' ||
+            !conversationId.trim()) {
             return this.failure('INVALID_REQUEST', 'Valid accountId and conversationId are required.');
         }
         if (accountId !== this.accountId) {
@@ -83,7 +82,6 @@ export class MockDirectInboxProvider {
         if (!messages) {
             return this.failure('NOT_FOUND', 'Mock conversation not found.');
         }
-        // Return copies so callers cannot modify the mock dataset.
         return this.success(messages.map(message => ({ ...message })));
     }
 }

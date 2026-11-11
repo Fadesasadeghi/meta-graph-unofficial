@@ -40,7 +40,7 @@ export class CommentReplyAdvisor {
 
     let category: CommentCategory = 'general';
     let suggestedReply: string | null =
-      'ممنون که نظرت رو با ما به اشتراک گذاشتی 🌷';
+      'Thanks for sharing your feedback with us.';
     let reason = 'General comment; a cautious reply is suggested.';
     let confidence: 'low' | 'medium' = 'low';
 
@@ -48,8 +48,7 @@ export class CommentReplyAdvisor {
       matches([
         /https?:\/\/|www\./,
         /(?:t\.me|wa\.me)\//,
-        /فالوور رایگان|درآمد تضمینی|تبلیغات رایگان/,
-        /free followers|guaranteed income/
+        /free followers|guaranteed income|free promotion|dm for collab/
       ])
     ) {
       category = 'spam';
@@ -58,60 +57,55 @@ export class CommentReplyAdvisor {
       confidence = 'medium';
     } else if (
       matches([
-        /ناراضی|خراب|اشتباه|افتضاح|شکایت|دیر رسید/,
-        /complaint|broken|disappointed|refund/
+        /complaint|broken|wrong|terrible|late|disappointed|refund|problem/
       ])
     ) {
       category = 'complaint';
       suggestedReply =
-        'متأسفیم که تجربه خوبی نداشتی. لطفاً جزئیات رو از طریق راه ارتباطی رسمی پیج مطرح کن تا بررسی کنیم.';
+        'We are sorry to hear that. Please contact us through our official support channel so we can review the issue.';
       reason = 'Complaint detected; avoid unverified promises.';
       confidence = 'medium';
     } else if (
       matches([
-        /عالی|قشنگ|زیبا|ممنون|مرسی|دوست داشتم/,
         /beautiful|amazing|love it|thank you|great content|nice post|awesome|well done/
       ]) &&
       matches([
-        /ولی|اما|با این حال/,
         /\b(?:but|however|although)\b/
       ])
     ) {
       category = 'general';
-      suggestedReply = 'ممنون که نظرت رو گفتی. لطفاً جزئیات بیشتری بده تا موضوع رو بررسی کنیم.';
+      suggestedReply =
+        'Thanks for the feedback. Please share a bit more detail so we can review it carefully.';
       reason = 'Mixed feedback requires human review.';
       confidence = 'low';
     } else if (
       matches([
-        /قیمت|چنده|چقدره|هزینه|تومن|تومان/,
-        /price|cost|how much/
+        /price|cost|how much|pricing/
       ])
     ) {
       category = 'pricing';
       suggestedReply =
-        'ممنون از پرسشت 🌷 لطفاً مدل یا محصول موردنظرت رو مشخص کن تا اطلاعات دقیق قیمت رو بررسی کنیم.';
+        'Thanks for your question. Please tell us which item you mean so we can check the exact price.';
       reason = 'Pricing question; do not fabricate prices.';
       confidence = 'medium';
     } else if (
       matches([
-        /محصول|سایز|رنگ بندی|موجود|کیفیت|جنس/,
-        /product|size|available|quality/
+        /product|size|color|available|quality|material/
       ])
     ) {
       category = 'product_question';
       suggestedReply =
-        'ممنون از پرسشت 🌷 لطفاً مشخص کن درباره کدوم محصول سؤال داری تا اطلاعاتش رو بررسی کنیم.';
+        'Thanks for your question. Please tell us which product you mean so we can check the details for you.';
       reason = 'Product question; details require verification.';
       confidence = 'medium';
     } else if (
       matches([
-        /عالی|قشنگ|زیبا|ممنون|مرسی|دوست داشتم/,
         /beautiful|amazing|love it|thank you|great content|nice post|awesome|well done/
       ])
     ) {
       category = 'compliment';
       suggestedReply =
-        'خیلی ممنون از محبتت! خوشحالیم که دوستش داشتی 💛';
+        'Thank you so much. We are glad you liked it.';
       reason = 'Positive feedback detected.';
       confidence = 'medium';
     }
@@ -122,7 +116,7 @@ export class CommentReplyAdvisor {
       suggestedReply,
       confidence,
       requiresApproval: true,
-      shouldReply: suggestedReply !== null,
+      shouldReply: category !== 'spam',
       reason,
       source: 'rule-based'
     };

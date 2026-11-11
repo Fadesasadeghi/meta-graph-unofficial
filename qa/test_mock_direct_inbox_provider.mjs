@@ -39,7 +39,7 @@ test('reads a verified pricing conversation', async () => {
     result.data[0].id,
     'demo-message-pricing-1'
   );
-  assert.match(result.data[0].text, /قیمت/);
+  assert.match(result.data[0].text, /how much/i);
 });
 
 test('rejects unknown accounts', async () => {
@@ -108,5 +108,5 @@ test('returned messages cannot mutate the mock dataset', async () => {
   assert.equal(second.ok, true);
   if (!second.ok) return;
 
-  assert.match(second.data[0].text, /سفارشم/);
+  assert.match(second.data[0].text, /order.*not arrived/i);
 });

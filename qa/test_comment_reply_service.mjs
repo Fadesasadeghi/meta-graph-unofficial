@@ -21,9 +21,9 @@ import {
 } from '../dist/comments/comment_auto_reply_policy.js';
 
 const templates = {
-  compliment: 'خیلی ممنون از محبتت 💛',
-  pricing: 'لطفاً مدل محصول رو مشخص کن تا قیمت بررسی بشه.',
-  product_question: 'لطفاً محصول موردنظرت رو مشخص کن.'
+  compliment: 'Thank you so much for your support!',
+  pricing: 'Please share the product model so we can check the price.',
+  product_question: 'Please specify which product you mean.'
 };
 
 test('comment reply service respects account settings', async () => {
@@ -69,7 +69,7 @@ test('comment reply service respects account settings', async () => {
       'owner-a',
       accountA.id,
       'comment-1',
-      'قیمت این محصول چقدره؟'
+      'How much does this item cost?'
     );
 
     assert.equal(initial.mode, 'manual');
@@ -92,7 +92,7 @@ test('comment reply service respects account settings', async () => {
       'owner-a',
       accountA.id,
       'comment-2',
-      'قیمت این محصول چقدره؟'
+      'How much does this item cost?'
     );
 
     assert.equal(pricing.mode, 'auto');
@@ -107,7 +107,7 @@ test('comment reply service respects account settings', async () => {
       'owner-a',
       accountA.id,
       'comment-3',
-      'محصول خراب بود و ناراضی هستم'
+      'The item arrived broken and I am disappointed.'
     );
 
     assert.equal(complaint.mode, 'manual');
@@ -120,7 +120,7 @@ test('comment reply service respects account settings', async () => {
       'owner-a',
       accountA.id,
       'comment-4',
-      'فالوور رایگان https://example.com'
+      'Free followers https://example.com'
     );
 
     assert.equal(spam.mode, 'skip');
@@ -133,14 +133,14 @@ test('comment reply service respects account settings', async () => {
       'owner-a',
       accountB.id,
       'comment-5',
-      'خیلی عالی بود!'
+      'Absolutely amazing!'
     );
 
     const accountCPreview = await preview(
       'owner-b',
       accountC.id,
       'comment-6',
-      'خیلی عالی بود!'
+      'Absolutely amazing!'
     );
 
     assert.equal(accountBPreview.mode, 'manual');
@@ -151,7 +151,7 @@ test('comment reply service respects account settings', async () => {
         'owner-b',
         accountA.id,
         'comment-7',
-        'خیلی عالی بود!'
+        'Absolutely amazing!'
       ),
       /Account not found for this owner/
     );
@@ -173,7 +173,7 @@ test('comment reply service respects account settings', async () => {
       'owner-a',
       accountA.id,
       'comment-8',
-      'قیمت این محصول چقدره؟'
+      'How much does this item cost?'
     );
 
     assert.equal(disabled.mode, 'manual');
