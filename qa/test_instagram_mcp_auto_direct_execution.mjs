@@ -105,9 +105,21 @@ test('MCP direct workflow is isolated, authorized and idempotent', async () => {
 
     // 1. Tools are registered.
     const tools = await client.listTools();
-    assert.equal(tools.tools.length, 39);
+    assert.ok(
+      tools.tools.length >= 39,
+      'Previously registered MCP tools must remain available.'
+    );
 
-    console.log('PASS: 39 MCP tools registered.');
+    assert.ok(
+      tools.tools.some(
+        tool => tool.name === 'instagram_on_demand_growth_analysis'
+      ),
+      'New on-demand growth tool must be registered.'
+    );
+
+    console.log(
+      `PASS: ${tools.tools.length} MCP tools registered.`
+    );
 
     // 2. Unbound accounts cannot read the inbox.
     const denied = await call(

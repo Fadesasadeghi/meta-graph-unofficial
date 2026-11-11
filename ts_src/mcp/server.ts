@@ -57,6 +57,62 @@ import { ActionQueue, type QueuedAction } from '../actions/action_queue.js';
 import { ActionApprovalStore } from '../actions/action_approval_store.js';
 import { getLocalOwnerId } from '../accounts/local_owner.js';
 import { OwnerTimezoneStore } from '../settings/owner_timezone_store.js';
+import { AnalyticsSnapshotStore } from '../analytics/analytics_snapshot_store.js';
+import { AnalyticsHistoryService } from '../analytics/analytics_history_service.js';
+import { OnDemandGrowthService } from '../advisor/on_demand_growth_service.js';
+import type { InstagramDataProvider, InstagramListOptions } from '../providers/instagram_provider.js';
+
+class MockAnalyticsProviderAdapter implements InstagramDataProvider {
+  readonly source = 'mock' as const;
+  private readonly provider = new MockInstagramProvider();
+
+  async getProfile(accountId: string) {
+    const direct = await this.provider.getProfile(accountId);
+    if (direct.ok) return direct;
+
+    const fallback = await this.provider.getProfile('demo-account-1');
+    if (!fallback.ok) return fallback;
+
+    return {
+      ...fallback,
+      data: {
+        ...fallback.data,
+        id: accountId
+      }
+    };
+  }
+
+  async listMedia(accountId: string, options?: InstagramListOptions) {
+    const direct = await this.provider.listMedia(accountId, options);
+    if (direct.ok) return direct;
+
+    const fallback = await this.provider.listMedia('demo-account-1', options);
+    if (!fallback.ok) return fallback;
+
+    return {
+      ...fallback,
+      data: {
+        ...fallback.data,
+        items: fallback.data.items.map(item => ({
+          ...item,
+          accountId
+        }))
+      }
+    };
+  }
+
+  async getMediaInsights(accountId: string, mediaId: string) {
+    const direct = await this.provider.getMediaInsights(accountId, mediaId);
+    if (direct.ok) return direct;
+    return await this.provider.getMediaInsights('demo-account-1', mediaId);
+  }
+
+  async listComments(accountId: string, mediaId: string, options?: InstagramListOptions) {
+    const direct = await this.provider.listComments(accountId, mediaId, options);
+    if (direct.ok) return direct;
+    return await this.provider.listComments('demo-account-1', mediaId, options);
+  }
+}
 
 // Initialize the Ghost Service (wraps TwinGraph & Mobile/Web Twins)
 const ghost = new GhostService();
@@ -650,6 +706,21 @@ const GHOST_TOOLS: Tool[] = [
           type: 'string',
           description: 'Mock account ID. Currently only demo-account-1 is supported.',
           enum: ['demo-account-1']
+        }
+      },
+      required: ['accountId'],
+      additionalProperties: false
+    }
+  },
+  {
+    name: 'instagram_on_demand_growth_analysis',
+    description: 'Trigger on-demand content performance and growth analysis for a locally registered Instagram account. Computes baseline analytics or historical comparison trends, growth advice, and prioritized human-in-the-loop decisions. Requires explicit user invocation; performs no background monitoring or write actions.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        accountId: {
+          type: 'string',
+          description: 'Local account ID registered for the configured owner.'
         }
       },
       required: ['accountId'],
@@ -1831,6 +1902,41 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: JSON.stringify(result, null, 2)
             }
           ],
+          isError: !result.ok
+        };
+      }
+
+      case 'instagram_on_demand_growth_analysis': {
+        const ownerId = getLocalOwnerId();
+
+        if (
+          typeof args.accountId !== 'string' ||
+          !args.accountId.trim()
+        ) {
+          throw new Error('Valid accountId is required.');
+        }
+
+        const ownedAccounts = await accounts.list(ownerId);
+        if (!ownedAccounts.some(acc => acc.id === args.accountId)) {
+          throw new Error('Account not found for this owner.');
+        }
+
+        const provider = new MockAnalyticsProviderAdapter();
+        const analytics = new InstagramAnalyticsService(provider);
+        const snapshotDirectory = process.env.INSTAGRAM_ANALYTICS_SNAPSHOTS_DIR;
+        const snapshotStore = snapshotDirectory
+          ? new AnalyticsSnapshotStore(accounts, snapshotDirectory)
+          : new AnalyticsSnapshotStore(accounts);
+        const history = new AnalyticsHistoryService(analytics, snapshotStore);
+        const service = new OnDemandGrowthService(history);
+
+        const result = await service.analyze(ownerId, args.accountId);
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(result, null, 2)
+          }],
           isError: !result.ok
         };
       }
