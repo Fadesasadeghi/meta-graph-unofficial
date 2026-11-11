@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import { AccountStore as CommentPreviewAccountStore } from '../accounts/account_store.js';
+import { CommentReplySettingsStore as CommentPreviewSettingsStore } from '../comments/comment_reply_settings_store.js';
+import { CommentReplyService as CommentPreviewService } from '../comments/comment_reply_service.js';
+
 /**
  * Meta Graph Unofficial - Ghost Mode MCP Server
  * 
@@ -66,6 +70,43 @@ const server = new Server(
 
 // 1. Tool Definitions
 const GHOST_TOOLS: Tool[] = [
+  {
+    name: 'instagram_preview_comment_reply',
+    description: 'Preview a rule-based Instagram comment reply using per-account settings. Never sends a reply.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        accountId: { type: 'string' },
+        commentId: { type: 'string' },
+        text: { type: 'string', maxLength: 2000 }
+      },
+      required: ['accountId', 'commentId', 'text'],
+      additionalProperties: false
+    }
+  },
+
+  {
+    name: 'instagram_list_mock_comments',
+    description: 'List MOCK comments for a demo Instagram post. Read-only. Does not access real Instagram comments.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        accountId: {
+          type: 'string',
+          enum: ['demo-account-1']
+        },
+        mediaId: { type: 'string' },
+        limit: {
+          type: 'number',
+          minimum: 1,
+          maximum: 50
+        },
+        cursor: { type: 'string' }
+      },
+      required: ['accountId', 'mediaId'],
+      additionalProperties: false
+    }
+  },
   {
     name: 'instagram_queue_action',
     description: 'Queue an Instagram action for independent user approval. Does not execute, publish or send anything.',
@@ -685,6 +726,97 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
+      case 'instagram_preview_comment_reply': {
+        if (
+          typeof args.accountId !== 'string' ||
+          !args.accountId.trim() ||
+          typeof args.commentId !== 'string' ||
+          !args.commentId.trim() ||
+          typeof args.text !== 'string' ||
+          !args.text.trim() ||
+          args.text.length > 2000
+        ) {
+          throw new Error('Valid account, comment ID and text required.');
+        }
+
+        const accounts = new CommentPreviewAccountStore();
+        const settingsStore = new CommentPreviewSettingsStore(accounts);
+        const service = new CommentPreviewService(settingsStore);
+
+        const ownerId = process.env.INSTAGRAM_LOCAL_OWNER_ID;
+
+        if (!ownerId || !ownerId.trim()) {
+          throw new Error('INSTAGRAM_LOCAL_OWNER_ID is required.');
+        }
+
+        const preview = await service.preview(
+          ownerId,
+          args.accountId,
+          {
+            commentId: args.commentId,
+            text: args.text
+          }
+        );
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              ...preview,
+              simulated: true,
+              message: 'Preview only. No Instagram reply was sent.'
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'instagram_list_mock_comments': {
+        if (
+          args.accountId !== 'demo-account-1' ||
+          typeof args.mediaId !== 'string' ||
+          !args.mediaId.trim()
+        ) {
+          throw new Error('Valid demo account and media ID required.');
+        }
+
+        const limit = args.limit === undefined ? 20 : args.limit;
+
+        if (
+          typeof limit !== 'number' ||
+          !Number.isInteger(limit) ||
+          limit < 1 ||
+          limit > 50 ||
+          (
+            args.cursor !== undefined &&
+            typeof args.cursor !== 'string'
+          )
+        ) {
+          throw new Error('Invalid comment pagination options.');
+        }
+
+        const provider = new MockInstagramProvider();
+
+        const result = await provider.listComments(
+          args.accountId,
+          args.mediaId,
+          {
+            limit,
+            cursor: args.cursor as string | undefined
+          }
+        );
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              ...result,
+              simulated: true,
+              message: 'Comments are from MOCK data.'
+            }, null, 2)
+          }]
+        };
+      }
+
       case 'instagram_queue_action': {
         const ownerId = getLocalOwnerId();
 
