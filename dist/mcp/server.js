@@ -38,6 +38,25 @@ const server = new Server({
 // 1. Tool Definitions
 const GHOST_TOOLS = [
     {
+        name: 'instagram_update_account_draft',
+        description: 'Update a local draft for a specified registered account. Does not publish anything.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                accountId: { type: 'string' },
+                id: { type: 'string' },
+                caption: { type: 'string' },
+                mediaUrl: { type: 'string' },
+                hashtags: {
+                    type: 'array',
+                    items: { type: 'string' }
+                }
+            },
+            required: ['accountId', 'id'],
+            additionalProperties: false
+        }
+    },
+    {
         name: 'instagram_get_owner_timezone',
         description: 'Get the confirmed timezone for the configured local owner. No Instagram connection.',
         inputSchema: {
@@ -403,6 +422,35 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args = {} } = request.params;
     try {
         switch (name) {
+            case 'instagram_update_account_draft': {
+                const ownerId = getLocalOwnerId();
+                if (typeof args.accountId !== 'string' ||
+                    typeof args.id !== 'string') {
+                    throw new Error('accountId and id are required.');
+                }
+                const store = await accountDrafts.forAccount(ownerId, args.accountId);
+                const changes = {};
+                if (args.caption !== undefined) {
+                    changes.caption = args.caption;
+                }
+                if (args.mediaUrl !== undefined) {
+                    changes.mediaUrl = args.mediaUrl;
+                }
+                if (args.hashtags !== undefined) {
+                    changes.hashtags = args.hashtags;
+                }
+                const draft = await store.update(args.id, changes);
+                return {
+                    content: [{
+                            type: 'text',
+                            text: JSON.stringify({
+                                accountId: args.accountId,
+                                draft,
+                                message: 'Account draft updated locally. Nothing was published.'
+                            }, null, 2)
+                        }]
+                };
+            }
             case 'instagram_get_owner_timezone': {
                 const ownerId = getLocalOwnerId();
                 const settings = await ownerTimezones.forOwner(ownerId).get();
