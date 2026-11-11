@@ -17,6 +17,8 @@ import {
   Tool
 } from '@modelcontextprotocol/sdk/types.js';
 import { GhostService } from './ghost_service.js';
+import { MockInstagramProvider } from '../providers/mock_instagram_provider.js';
+import { InstagramAnalyticsService } from '../analytics/instagram_analytics_service.js';
 import { DraftStore, type DraftType } from '../content/draft_store.js';
 import { TimezoneStore } from '../settings/timezone_store.js';
 import { AccountStore } from '../accounts/account_store.js';
@@ -300,6 +302,22 @@ const GHOST_TOOLS: Tool[] = [
     }
   },
 
+  {
+    name: 'instagram_analyze_account',
+    description: 'Analyze a DEMO Instagram account using MOCK data only. No real Instagram connection. Returns engagement metrics, content mix, ranked posts, data quality, and recommendations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        accountId: {
+          type: 'string',
+          description: 'Mock account ID. Currently only demo-account-1 is supported.',
+          enum: ['demo-account-1']
+        }
+      },
+      required: ['accountId'],
+      additionalProperties: false
+    }
+  },
   {
     name: 'ghost_get_profile',
     description: 'Inspect any Instagram account anonymously in Ghost Mode. Returns username, full name, bio, follower count, following count, total post count, verified status, and HD profile picture without leaving any footprint.',
@@ -863,6 +881,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               draft
             }, null, 2)
           }]
+        };
+      }
+
+      case 'instagram_analyze_account': {
+        if (args.accountId !== 'demo-account-1') {
+          throw new Error(
+            'Only demo-account-1 is supported by the mock analytics tool.'
+          );
+        }
+
+        const analytics = new InstagramAnalyticsService(
+          new MockInstagramProvider()
+        );
+
+        const result = await analytics.analyzeAccount(args.accountId);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2)
+            }
+          ],
+          isError: !result.ok
         };
       }
 
